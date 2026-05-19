@@ -190,8 +190,8 @@ let isPracticeMode = false;
 let currentEvents = [];
 let sessionStartTime = null;
 let isWaitingForNextSession = false;
-// Store all events for the current session
 let currentSessionEvents = [];
+let isVideoEndedMode = false; // 明确追踪视频是否因播放完而结束
 
 // Auto-fill name on load
 window.addEventListener('DOMContentLoaded', () => {
@@ -325,7 +325,7 @@ document.getElementById('realStartBtn').addEventListener('click', function() {
     currentVideoIndexInSession = index;
     isPracticeMode = practice;
     isWaitingForNextSession = false;
-    currentSessionEvents = []; // Reset session events
+    currentSessionEvents = []; 
     
     sessionStartTime = Date.now();
     localStorage.setItem(STORAGE_KEY_SESSION_START, sessionStartTime.toString());
@@ -356,6 +356,7 @@ function initializeExperiment() {
 
     function loadNext() {
         isTransitioning = false;
+        isVideoEndedMode = false; // 重置视频完成状态
         
         // Handle practice mode
         if (isPracticeMode) {
@@ -367,6 +368,7 @@ function initializeExperiment() {
             currentEvents = [];
             evtCnt = 0;
             counter.textContent = 'Events: 0';
+            v.load(); // 强保视频环境重载
             return;
         }
         
@@ -376,7 +378,6 @@ function initializeExperiment() {
                 finishAll();
                 return;
             }
-            // Session complete, upload summary and wait for next session
             completeCurrentSession();
             return;
         }
@@ -392,6 +393,7 @@ function initializeExperiment() {
         // Load video
         const videoNum = sessionVideos[currentSession][currentVideoIndexInSession];
         v.src = `v${videoNum}.mp4`;
+        v.load(); // 强保视频环境重载
         
         prompt.innerHTML = `세션 ${currentSession} - 영상 ${currentVideoIndexInSession + 1} / ${VIDEOS_PER_SESSION}<br>시작하려면 아무 키나 누르세요.`;
         v.style.display = 'none';
@@ -408,24 +410,17 @@ function initializeExperiment() {
         const sessionStart = parseInt(localStorage.getItem(STORAGE_KEY_SESSION_START)) || sessionEndTime;
         const sessionDuration = Math.round((sessionEndTime - sessionStart) / 1000);
         
-        console.log(`Session ${currentSession} completed with ${currentSessionEvents.length} videos`);
-        
-        // Upload session summary with all collected events
+        // 严格等待 Session 摘要数据包传输完成
         await uploadSessionSummary(currentSession, currentSessionEvents, sessionDuration);
         
-        // Update session
         currentSession++;
         currentVideoIndexInSession = 0;
         localStorage.setItem(STORAGE_KEY_SESSION, currentSession.toString());
         localStorage.setItem(STORAGE_KEY_SESSION_START, Date.now().toString());
         
-        // Reset session events for new session
         currentSessionEvents = [];
-        
-        // Set waiting flag
         isWaitingForNextSession = true;
         
-        // Show completion message
         prompt.innerHTML = `<span style="color:#4CAF50;">[Session ${currentSession-1} 완료!]</span><br><br>
                             소요 시간: ${formatDuration(sessionDuration)}<br>
                             ${VIDEOS_PER_SESSION}개 영상 완료<br><br>
@@ -482,13 +477,13 @@ function initializeExperiment() {
         const txt = descInput.value.trim();
         if (!txt) { alert('설명을 입력해주세요.'); descInput.focus(); return; }
         
-        // Update description
         const lastIdx = currentEvents.length - 1;
         if (lastIdx >= 0) currentEvents[lastIdx].desc = txt;
         
         descBox.style.display = 'none';
         
-        if (v.ended) {
+        // 使用新引入的安全状态标志判定是否已结束，防止 v.ended 异步失效
+        if (isVideoEndedMode || v.ended) {
             isTransitioning = true;
             
             prompt.innerHTML = '데이터 저장 중입니다...';
@@ -498,9 +493,10 @@ function initializeExperiment() {
             const eventsToStore = [...currentEvents];
             currentSessionEvents.push(...eventsToStore);
             
-            // Upload video data
             const videoId = currentEvents[0]?.vid || 'unknown';
-            const success = await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
+            
+            // 严格等待单视频上传成功后再向下执行
+            await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
             
             if (v.src.includes('practice')) {
                 currentSession = 1;
@@ -508,13 +504,8 @@ function initializeExperiment() {
                 currentSessionEvents = []; 
                 loadNext();
             } else {
-                if (currentVideoIndexInSession === VIDEOS_PER_SESSION - 1) {
-                    currentVideoIndexInSession++;
-                    loadNext();
-                } else {
-                    currentVideoIndexInSession++;
-                    loadNext();
-                }
+                currentVideoIndexInSession++;
+                loadNext();
             }
         } else {
             v.play().catch(e => console.log('Play interrupted'));
@@ -527,10 +518,13 @@ function initializeExperiment() {
         evtCnt--;
         counter.textContent = 'Events: ' + Math.max(0, evtCnt);
         
-        if (v.src.includes('practice') && v.ended) {
+        if (isVideoEndedMode && v.src.includes('practice')) {
             currentSession = 1;
             currentVideoIndexInSession = 0;
             currentSessionEvents = []; 
+            loadNext();
+        } else if (isVideoEndedMode) {
+            currentVideoIndexInSession++;
             loadNext();
         } else {
             prompt.innerHTML = '취소되었습니다.<br>계속하려면 아무 키나 누르세요.';
@@ -540,7 +534,6 @@ function initializeExperiment() {
     }
 
     async function finishAll() {
-        // Upload final session summary for Session 2
         const sessionEndTime = Date.now();
         const sessionStart = parseInt(localStorage.getItem(STORAGE_KEY_SESSION_START)) || sessionEndTime;
         const sessionDuration = Math.round((sessionEndTime - sessionStart) / 1000);
@@ -623,6 +616,7 @@ function initializeExperiment() {
     };
 
     v.onended = () => {
+        isVideoEndedMode = true; // 视频播放结束触发，激活安全标记
         const videoId = v.src.includes('practice') ? 'practice' : sessionVideos[currentSession][currentVideoIndexInSession];
         
         currentEvents.push({
@@ -642,7 +636,7 @@ function initializeExperiment() {
     };
 }
 
-// ====== 4. Upload Functions ======
+// ====== 4. Upload Functions (UPDATED FOR NEW FORMS & PROJECTS) ======
 
 function getGlobalData() {
     try {
@@ -661,9 +655,11 @@ async function uploadVideo(videoId, events, session, position) {
     
     const pid = getParticipantID();
     const formData = new FormData();
-    formData.append('form-name', 'event-segmentation-kr');
+    // [更新位置 1]：改变表单交互名
+    formData.append('form-name', 'after-scan-event-segmentation');
     formData.append('prolific_pid', pid);
-    formData.append('study_id', 'korean_exp_v8');
+    // [更新位置 2]：配合研究名称改动 study_id
+    formData.append('study_id', 'after_scan_event_segmentation');
     
     if (videoId === 'practice') {
         formData.append('session_id', `sess_${pid}_practice`);
@@ -684,11 +680,15 @@ async function uploadVideo(videoId, events, session, position) {
     formData.append('bot-field', '');
 
     try {
-        await fetch('/', { method: 'POST', body: formData });
-        showUploadStatus(`✅ 영상 ${videoId} 저장 완료`);
-        return true;
+        const response = await fetch('/', { method: 'POST', body: formData });
+        if (response.ok) {
+            showUploadStatus(`✅ 영상 ${videoId} 저장 완료`);
+            return true;
+        } else {
+            throw new Error('Network status error');
+        }
     } catch (e) {
-        showUploadStatus(`❌ 저장 실패`, true);
+        showUploadStatus(`❌ 저장 실패 (서버 오류)`, true);
         console.error(e);
         return false;
     }
@@ -697,9 +697,10 @@ async function uploadVideo(videoId, events, session, position) {
 async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     const pid = getParticipantID();
     const formData = new FormData();
-    formData.append('form-name', 'event-segmentation-kr');
+    // [更新位置 3]：改变 Session Summary 的表单交互名
+    formData.append('form-name', 'after-scan-event-segmentation');
     formData.append('prolific_pid', pid);
-    formData.append('study_id', 'korean_exp_v8');
+    formData.append('study_id', 'after_scan_event_segmentation');
     formData.append('session_id', `sess_${pid}_session${sessionNum}_summary`);
     formData.append('upload_type', 'session_summary');
     formData.append('session_number', sessionNum.toString());
@@ -725,9 +726,10 @@ async function uploadFinalSummary() {
     const allData = getGlobalData();
     const pid = getParticipantID();
     const formData = new FormData();
-    formData.append('form-name', 'event-segmentation-kr');
+    // [更新位置 4]：改变 Final Summary 的表单交互名
+    formData.append('form-name', 'after-scan-event-segmentation');
     formData.append('prolific_pid', pid);
-    formData.append('study_id', 'korean_exp_v8');
+    formData.append('study_id', 'after_scan_event_segmentation');
     formData.append('session_id', `sess_${pid}_final`);
     formData.append('upload_type', 'final');
     formData.append('video_index', 'ALL');
