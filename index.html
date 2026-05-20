@@ -481,7 +481,21 @@ function initializeExperiment() {
         if (isTransitioning) return;
         
         const txt = descInput.value.trim();
-        if (!txt) { alert('설명을 입력해주세요.'); descInput.focus(); return; }
+        
+        // 1. Basic empty check
+        if (!txt) { 
+            alert('설명을 입력해주세요. (Please enter a description.)'); 
+            descInput.focus(); 
+            return; 
+        }
+        
+        // 2. Minimum 6 words constraint (split by one or more spaces)
+        const wordCount = txt.split(/\s+/).length;
+        if (wordCount < 6) {
+            alert(`설명은 최소 6단어 이상이어야 합니다. (현재: ${wordCount}단어)\nThe description must be at least 6 words.`);
+            descInput.focus();
+            return;
+        }
         
         // Update description
         const lastIdx = currentEvents.length - 1;
