@@ -130,7 +130,7 @@
   </div>
 </div>
 
-<!-- 4. Completion Screen (Korean) - Removed manual download button -->
+<!-- 4. Completion Screen (Korean) -->
 <div id="completion">
   <h2>참여해 주셔서 감사합니다!</h2>
   <div id="waitMsg" class="wait-warning">
@@ -157,7 +157,6 @@
   <input type="hidden" name="upload_type">
   <input type="hidden" name="events">
   <input type="hidden" name="completion_time">
-  <!-- New tracking fields -->
   <input type="hidden" name="videos_completed">
   <input type="hidden" name="total_events_recorded">
   <input type="text" name="bot-field" style="display: none;">
@@ -325,7 +324,7 @@ document.getElementById('realStartBtn').addEventListener('click', function() {
 function initializeExperiment() {
     let evtCnt = 0;
     let fineTuning = false;
-    let isTransitioning = false;
+    let isTransitioning = false; // 键盘锁！设为 true 时，键盘操作无效。
 
     const v = document.getElementById('v');
     const prompt = document.getElementById('prompt');
@@ -338,7 +337,6 @@ function initializeExperiment() {
     loadNext();
 
     function loadNext() {
-        isTransitioning = false;
         isVideoEndedMode = false; 
         
         if (isPracticeMode) {
@@ -351,15 +349,7 @@ function initializeExperiment() {
             evtCnt = 0;
             counter.textContent = 'Events: 0';
             v.load();
-            return;
-        }
-        
-        if (currentVideoIndexInSession >= VIDEOS_PER_SESSION) {
-            if (currentSession === 2) {
-                finishAll();
-                return;
-            }
-            completeCurrentSession();
+            isTransitioning = false; // 准备完毕，解除键盘锁
             return;
         }
 
@@ -378,6 +368,8 @@ function initializeExperiment() {
         evtCnt = 0;
         counter.textContent = 'Events: 0';
         fineTuning = false;
+        
+        isTransitioning = false; // 准备完毕，解除键盘锁
     }
 
     async function completeCurrentSession() {
@@ -405,6 +397,8 @@ function initializeExperiment() {
                             Session ${currentSession}를 시작하려면 아무 키나 누르세요.`;
         v.style.display = 'none';
         prompt.style.display = 'block';
+        
+        isTransitioning = false; // 요약 전송 및 대기화면 세팅 완료 -> 키보드 잠금 해제
     }
 
     function formatDuration(seconds) {
@@ -442,16 +436,17 @@ function initializeExperiment() {
         descInput.focus();
     }
 
+    // ⭐ 핵심 수정 로직: 단일 영상 제출 시의 흐름 제어
     async function saveDesc() {
-        if (isTransitioning) return;
+        if (isTransitioning) return; // 이미 제출 처리 중이면 중복 실행 방지
+        
         const txt = descInput.value.trim();
         
         if (!txt) { alert('설명을 입력해주세요. (Please enter a description.)'); descInput.focus(); return; }
         
-        // 글자수 제한: 공백 제외 6글자 이상 (Minimum 6 characters constraint excluding spaces)
         const validCharCount = txt.replace(/\s+/g, '').length;
         if (validCharCount < 6) {
-            alert(`설명은 공백 제외 최소 6글자 이상이어야 합니다. (현재: ${validCharCount}글자)\nThe description must be at least 6 characters long (excluding spaces).`);
+            alert(`설명은 공백 제외 최소 6글자 이상이어야 합니다. (현재: ${validCharCount}글자)\nThe description must be at least 6 characters long.`);
             descInput.focus();
             return;
         }
@@ -461,7 +456,9 @@ function initializeExperiment() {
         descBox.style.display = 'none';
         
         if (isVideoEndedMode || v.ended) {
-            isTransitioning = true;
+            // [강제 잠금] 다음 영상 세팅이나 Session Summary가 끝날 때까지 키보드 입력을 완전히 차단합니다.
+            isTransitioning = true; 
+            
             prompt.innerHTML = '데이터 저장 중입니다...';
             prompt.style.display = 'block';
             v.style.display = 'none';
@@ -469,40 +466,71 @@ function initializeExperiment() {
             const eventsToStore = [...currentEvents];
             currentSessionEvents.push(...eventsToStore);
             
-            // Console 로그 수정: 총 이벤트 수 표시
             console.log(`Added video ${currentVideoIndexInSession + 1} events to session collection. Total events recorded so far: ${currentSessionEvents.length}`);
             
             const videoId = currentEvents[0]?.vid || 'unknown';
+            // 현재 영상 데이터 서버 전송
             await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
             
             if (v.src.includes('practice')) {
                 currentSession = 1;
                 currentVideoIndexInSession = 0;
                 currentSessionEvents = []; 
-                loadNext();
+                loadNext(); // 연습 끝나면 다음 세팅
             } else {
-                currentVideoIndexInSession++;
-                loadNext(); // loadNext 내부에서 세션 완료 여부를 판별합니다.
+                // 이 영상이 세션의 마지막 영상이었는지 판별
+                if (currentVideoIndexInSession === VIDEOS_PER_SESSION - 1) {
+                    currentVideoIndexInSession++; // 인덱스는 먼저 올림 (8이 됨)
+                    
+                    if (currentSession === TOTAL_SESSIONS) {
+                        await finishAll(); // 마지막 세션이었다면 최종 종료 로직으로
+                    } else {
+                        await completeCurrentSession(); // 아니면 세션 종료 로직으로 직행 (이 안에서 1.5초 대기하고 키보드 풀어줌)
+                    }
+                } else {
+                    currentVideoIndexInSession++;
+                    loadNext(); // 아직 마지막 영상이 아니면 다음 영상 로드
+                }
             }
         } else {
             v.play().catch(e => console.log('Play interrupted'));
         }
     }
 
-    function cancelDescription() {
+    async function cancelDescription() {
+        if (isTransitioning) return;
+        
         descBox.style.display = 'none';
         currentEvents.pop();
         evtCnt--;
         counter.textContent = 'Events: ' + Math.max(0, evtCnt);
         
-        if (isVideoEndedMode && v.src.includes('practice')) {
+        if (v.src.includes('practice') && (isVideoEndedMode || v.ended)) {
             currentSession = 1;
             currentVideoIndexInSession = 0;
             currentSessionEvents = []; 
+            isTransitioning = true;
             loadNext();
-        } else if (isVideoEndedMode) {
-            currentVideoIndexInSession++;
-            loadNext();
+        } else if (isVideoEndedMode || v.ended) {
+            isTransitioning = true; // 잠금
+            prompt.innerHTML = '진행 중입니다...';
+            prompt.style.display = 'block';
+            v.style.display = 'none';
+
+            // 취소했더라도 빈 데이터로 전송은 해야 함
+            const eventsToStore = [...currentEvents];
+            currentSessionEvents.push(...eventsToStore);
+            const videoId = sessionVideos[currentSession][currentVideoIndexInSession];
+            await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
+
+            if (currentVideoIndexInSession === VIDEOS_PER_SESSION - 1) {
+                currentVideoIndexInSession++;
+                if (currentSession === TOTAL_SESSIONS) await finishAll();
+                else await completeCurrentSession();
+            } else {
+                currentVideoIndexInSession++;
+                loadNext();
+            }
         } else {
             prompt.innerHTML = '취소되었습니다.<br>계속하려면 아무 키나 누르세요.';
             prompt.style.display = 'block';
@@ -539,11 +567,14 @@ function initializeExperiment() {
                 document.getElementById('finalMsg').style.display = 'block';
             }
         }, 1000);
+        
+        // 모든 통신 끝, 더이상 아무것도 안해도 되므로 lock 풀 필요 없음
     }
 
     document.getElementById('okBtn').onclick = saveDesc;
     document.getElementById('cancelBtn').onclick = cancelDescription;
 
+    // 키보드 리스너: isTransitioning 이 true 일 때는 절대 어떤 행동도 허용하지 않음
     document.onkeydown = (e) => {
         if (document.getElementById('experiment').style.display === 'none') return;
         
@@ -554,7 +585,8 @@ function initializeExperiment() {
         }
         
         if (v.style.display === 'none' && prompt.style.display !== 'none') {
-            if (isTransitioning) return;
+            if (isTransitioning) return; // 🌟 핵심 잠금 장치: 통신 중이거나 화면 전환 준비 중이면 키보드 씹음
+            
             prompt.style.display = 'none';
             v.style.display = 'block';
             if (isWaitingForNextSession) {
@@ -614,7 +646,6 @@ function appendToDisk(events) {
     localStorage.setItem(STORAGE_KEY_ALL_DATA, JSON.stringify(all));
 }
 
-// [신규] 통신 실패 시 최대 3번까지 자동 재시도하는 강력한 Fetch 함수
 async function fetchWithRetry(url, options, retries = 3) {
     for (let i = 0; i < retries; i++) {
         try {
@@ -674,7 +705,7 @@ async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     formData.append('session_number', sessionNum.toString());
     formData.append('session_duration_seconds', durationSeconds.toString());
     
-    // [수정] 실제 수집된 '영상 개수'와 '이벤트 개수'를 정확히 구분하여 전송
+    // 정확한 통계 수치 전송
     const uniqueVideosCount = new Set(sessionData.map(e => e.vid)).size;
     formData.append('videos_completed', uniqueVideosCount.toString());
     formData.append('total_events_recorded', sessionData.length.toString()); 
@@ -702,7 +733,6 @@ async function uploadFinalSummary() {
     formData.append('upload_type', 'final_all_data');
     formData.append('video_index', 'ALL_VIDEOS');
     
-    // 최종 데이터 역시 실제 개수 통계 첨부
     const uniqueVideosCount = new Set(allData.map(e => e.vid)).size;
     formData.append('videos_completed', uniqueVideosCount.toString());
     formData.append('total_events_recorded', allData.length.toString());
