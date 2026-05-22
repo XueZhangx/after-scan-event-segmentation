@@ -134,7 +134,7 @@
 <div id="completion">
   <h2>참여해 주셔서 감사합니다!</h2>
   <div id="waitMsg" class="wait-warning">
-      데이터 최종 동기화 중입니다. 창을 닫지 말고 잠시만 기다려주세요... <span id="countdown" style="font-size: 24px; color: white;">8</span>
+      데이터 동기화 중입니다. 창을 닫지 말고 잠시만 기다려주세요... <span id="countdown" style="font-size: 24px; color: white;">5</span>
   </div>
   <div id="finalMsg" class="success-msg">
       ✅ 데이터가 성공적으로 저장되었습니다. 이제 창을 닫으셔도 됩니다.
@@ -157,8 +157,9 @@
   <input type="hidden" name="upload_type">
   <input type="hidden" name="events">
   <input type="hidden" name="completion_time">
+  <input type="hidden" name="session_number">
   <input type="hidden" name="videos_completed">
-  <input type="hidden" name="total_events_recorded">
+  <input type="hidden" name="total_videos_in_session">
   <input type="text" name="bot-field" style="display: none;">
 </form>
 
@@ -176,6 +177,7 @@ const STORAGE_KEY_SESSION = 'seeg_kor_v8_session';
 const STORAGE_KEY_VIDEO_ORDER = 'seeg_kor_v8_order';
 const STORAGE_KEY_SESSION_START = 'seeg_kor_v8_session_start';
 
+// Global state
 let currentSession = 1;
 let videoOrder = [];
 let sessionVideos = {1: [], 2: []};
@@ -184,13 +186,17 @@ let isPracticeMode = false;
 let currentEvents = [];
 let sessionStartTime = null;
 let isWaitingForNextSession = false;
+// Store all events for the current session
 let currentSessionEvents = [];
-let isVideoEndedMode = false; 
 
+// Auto-fill name on load
 window.addEventListener('DOMContentLoaded', () => {
     const savedName = localStorage.getItem(STORAGE_KEY_NAME);
-    if(savedName) document.getElementById('participantName').value = savedName;
+    if(savedName) {
+        document.getElementById('participantName').value = savedName;
+    }
     
+    // Check for unfinished experiment
     const savedProgress = localStorage.getItem(STORAGE_KEY_PROGRESS);
     if (savedProgress) {
         setTimeout(() => {
@@ -201,12 +207,14 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Get participant ID
 function getParticipantID() {
     let name = document.getElementById('participantName').value.trim();
     if(!name) name = localStorage.getItem(STORAGE_KEY_NAME) || "Unknown_User";
     return name;
 }
 
+// Shuffle array
 function shuffleArray(array) {
     const newArray = [...array];
     for (let i = newArray.length - 1; i > 0; i--) {
@@ -216,6 +224,7 @@ function shuffleArray(array) {
     return newArray;
 }
 
+// Initialize randomization
 function initializeRandomization() {
     const savedOrder = localStorage.getItem(STORAGE_KEY_VIDEO_ORDER);
     const savedSession = localStorage.getItem(STORAGE_KEY_SESSION);
@@ -235,6 +244,7 @@ function initializeRandomization() {
     }
 }
 
+// Show starter menu
 function showStarterMenu() {
     const starter = document.getElementById('starter');
     const startSelect = document.getElementById('startSelect');
@@ -285,6 +295,7 @@ function showStarterMenu() {
     starter.style.display = 'flex';
 }
 
+// ====== 1. Consent ======
 document.getElementById('agreeBtn').addEventListener('click', function() {
     const name = document.getElementById('participantName').value.trim();
     if(!name) { alert("이름을 입력해주세요."); return; }
@@ -293,6 +304,7 @@ document.getElementById('agreeBtn').addEventListener('click', function() {
     showStarterMenu();
 });
 
+// ====== 2. Start ======
 document.getElementById('realStartBtn').addEventListener('click', function() {
     const val = document.getElementById('startSelect').value;
     let session, index, practice = false;
@@ -309,7 +321,7 @@ document.getElementById('realStartBtn').addEventListener('click', function() {
     currentVideoIndexInSession = index;
     isPracticeMode = practice;
     isWaitingForNextSession = false;
-    currentSessionEvents = []; 
+    currentSessionEvents = []; // Reset session events
     
     sessionStartTime = Date.now();
     localStorage.setItem(STORAGE_KEY_SESSION_START, sessionStartTime.toString());
@@ -321,10 +333,11 @@ document.getElementById('realStartBtn').addEventListener('click', function() {
     initializeExperiment();
 });
 
+// ====== 3. Experiment ======
 function initializeExperiment() {
     let evtCnt = 0;
     let fineTuning = false;
-    let isTransitioning = false; // 键盘锁！设为 true 时，键盘操作无效。
+    let isTransitioning = false;
 
     const v = document.getElementById('v');
     const prompt = document.getElementById('prompt');
@@ -334,11 +347,13 @@ function initializeExperiment() {
     const evNumSpan = document.getElementById('evNum');
     const adjustHint = document.getElementById('adjustHint');
 
+    // Load first video
     loadNext();
 
     function loadNext() {
-        isVideoEndedMode = false; 
+        isTransitioning = false;
         
+        // Handle practice mode
         if (isPracticeMode) {
             isPracticeMode = false;
             v.src = 'practice.mp4';
@@ -348,17 +363,31 @@ function initializeExperiment() {
             currentEvents = [];
             evtCnt = 0;
             counter.textContent = 'Events: 0';
-            v.load();
-            isTransitioning = false; // 准备完毕，解除键盘锁
+            return;
+        }
+        
+        // Check if session is complete
+        if (currentVideoIndexInSession >= VIDEOS_PER_SESSION) {
+            if (currentSession === TOTAL_SESSIONS) {
+                finishAll();
+                return;
+            }
+            // Session complete, upload summary and wait for next session
+            completeCurrentSession();
             return;
         }
 
-        const progress = { session: currentSession, videoIndex: currentVideoIndexInSession, timestamp: Date.now() };
+        // Save progress
+        const progress = {
+            session: currentSession,
+            videoIndex: currentVideoIndexInSession,
+            timestamp: Date.now()
+        };
         localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
 
+        // Load video
         const videoNum = sessionVideos[currentSession][currentVideoIndexInSession];
         v.src = `v${videoNum}.mp4`;
-        v.load();
         
         prompt.innerHTML = `세션 ${currentSession} - 영상 ${currentVideoIndexInSession + 1} / ${VIDEOS_PER_SESSION}<br>시작하려면 아무 키나 누르세요.`;
         v.style.display = 'none';
@@ -368,8 +397,6 @@ function initializeExperiment() {
         evtCnt = 0;
         counter.textContent = 'Events: 0';
         fineTuning = false;
-        
-        isTransitioning = false; // 准备完毕，解除键盘锁
     }
 
     async function completeCurrentSession() {
@@ -377,28 +404,30 @@ function initializeExperiment() {
         const sessionStart = parseInt(localStorage.getItem(STORAGE_KEY_SESSION_START)) || sessionEndTime;
         const sessionDuration = Math.round((sessionEndTime - sessionStart) / 1000);
         
-        // 1. Session 요약본 업로드
+        console.log(`Session ${currentSession} completed with ${currentSessionEvents.length} videos`);
+        
+        // Upload session summary with all collected events
         await uploadSessionSummary(currentSession, currentSessionEvents, sessionDuration);
         
-        // 2. [错峰传输] 서버 과부하 방지를 위해 1.5초 대기
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
+        // Update session
         currentSession++;
         currentVideoIndexInSession = 0;
         localStorage.setItem(STORAGE_KEY_SESSION, currentSession.toString());
         localStorage.setItem(STORAGE_KEY_SESSION_START, Date.now().toString());
         
+        // Reset session events for new session
         currentSessionEvents = [];
+        
+        // Set waiting flag
         isWaitingForNextSession = true;
         
+        // Show completion message
         prompt.innerHTML = `<span style="color:#4CAF50;">[Session ${currentSession-1} 완료!]</span><br><br>
                             소요 시간: ${formatDuration(sessionDuration)}<br>
                             ${VIDEOS_PER_SESSION}개 영상 완료<br><br>
                             Session ${currentSession}를 시작하려면 아무 키나 누르세요.`;
         v.style.display = 'none';
         prompt.style.display = 'block';
-        
-        isTransitioning = false; // 요약 전송 및 대기화면 세팅 완료 -> 키보드 잠금 해제
     }
 
     function formatDuration(seconds) {
@@ -421,12 +450,19 @@ function initializeExperiment() {
 
     function confirmEnd() {
         if (!fineTuning) return;
+        
         fineTuning = false;
         adjustHint.style.display = 'none';
         
         const videoId = v.src.includes('practice') ? 'practice' : sessionVideos[currentSession][currentVideoIndexInSession];
         
-        currentEvents.push({ vid: videoId, session: currentSession, ev: evtCnt + 1, time: v.currentTime, desc: '' });
+        currentEvents.push({
+            vid: videoId,
+            session: currentSession,
+            ev: evtCnt + 1,
+            time: v.currentTime,
+            desc: ''
+        });
         
         evtCnt++;
         counter.textContent = 'Events: ' + evtCnt;
@@ -436,14 +472,14 @@ function initializeExperiment() {
         descInput.focus();
     }
 
-    // ⭐ 핵심 수정 로직: 단일 영상 제출 시의 흐름 제어
     async function saveDesc() {
-        if (isTransitioning) return; // 이미 제출 처리 중이면 중복 실행 방지
+        if (isTransitioning) return;
         
         const txt = descInput.value.trim();
         
         if (!txt) { alert('설명을 입력해주세요. (Please enter a description.)'); descInput.focus(); return; }
         
+        // 6 characters check (excluding space)
         const validCharCount = txt.replace(/\s+/g, '').length;
         if (validCharCount < 6) {
             alert(`설명은 공백 제외 최소 6글자 이상이어야 합니다. (현재: ${validCharCount}글자)\nThe description must be at least 6 characters long.`);
@@ -451,45 +487,43 @@ function initializeExperiment() {
             return;
         }
         
+        // Update description
         const lastIdx = currentEvents.length - 1;
         if (lastIdx >= 0) currentEvents[lastIdx].desc = txt;
+        
         descBox.style.display = 'none';
         
-        if (isVideoEndedMode || v.ended) {
-            // [강제 잠금] 다음 영상 세팅이나 Session Summary가 끝날 때까지 키보드 입력을 완전히 차단합니다.
-            isTransitioning = true; 
+        // 遵照旧版视频结束判断逻辑：严格使用 v.ended
+        if (v.ended) {
+            isTransitioning = true;
             
             prompt.innerHTML = '데이터 저장 중입니다...';
             prompt.style.display = 'block';
             v.style.display = 'none';
             
+            // Store events in currentSessionEvents BEFORE upload
             const eventsToStore = [...currentEvents];
             currentSessionEvents.push(...eventsToStore);
             
-            console.log(`Added video ${currentVideoIndexInSession + 1} events to session collection. Total events recorded so far: ${currentSessionEvents.length}`);
-            
+            // Upload video data
             const videoId = currentEvents[0]?.vid || 'unknown';
-            // 현재 영상 데이터 서버 전송
-            await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
+            const success = await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
             
             if (v.src.includes('practice')) {
                 currentSession = 1;
                 currentVideoIndexInSession = 0;
-                currentSessionEvents = []; 
-                loadNext(); // 연습 끝나면 다음 세팅
+                currentSessionEvents = []; // Reset session events
+                loadNext();
             } else {
-                // 이 영상이 세션의 마지막 영상이었는지 판별
+                // Check if this was the last video
                 if (currentVideoIndexInSession === VIDEOS_PER_SESSION - 1) {
-                    currentVideoIndexInSession++; // 인덱스는 먼저 올림 (8이 됨)
-                    
-                    if (currentSession === TOTAL_SESSIONS) {
-                        await finishAll(); // 마지막 세션이었다면 최종 종료 로직으로
-                    } else {
-                        await completeCurrentSession(); // 아니면 세션 종료 로직으로 직행 (이 안에서 1.5초 대기하고 키보드 풀어줌)
-                    }
-                } else {
+                    // Last video - increment and let loadNext handle session completion
                     currentVideoIndexInSession++;
-                    loadNext(); // 아직 마지막 영상이 아니면 다음 영상 로드
+                    loadNext();
+                } else {
+                    // Not last video - move to next
+                    currentVideoIndexInSession++;
+                    loadNext();
                 }
             }
         } else {
@@ -497,40 +531,17 @@ function initializeExperiment() {
         }
     }
 
-    async function cancelDescription() {
-        if (isTransitioning) return;
-        
+    function cancelDescription() {
         descBox.style.display = 'none';
         currentEvents.pop();
         evtCnt--;
         counter.textContent = 'Events: ' + Math.max(0, evtCnt);
         
-        if (v.src.includes('practice') && (isVideoEndedMode || v.ended)) {
+        if (v.src.includes('practice') && v.ended) {
             currentSession = 1;
             currentVideoIndexInSession = 0;
-            currentSessionEvents = []; 
-            isTransitioning = true;
+            currentSessionEvents = []; // Reset session events
             loadNext();
-        } else if (isVideoEndedMode || v.ended) {
-            isTransitioning = true; // 잠금
-            prompt.innerHTML = '진행 중입니다...';
-            prompt.style.display = 'block';
-            v.style.display = 'none';
-
-            // 취소했더라도 빈 데이터로 전송은 해야 함
-            const eventsToStore = [...currentEvents];
-            currentSessionEvents.push(...eventsToStore);
-            const videoId = sessionVideos[currentSession][currentVideoIndexInSession];
-            await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
-
-            if (currentVideoIndexInSession === VIDEOS_PER_SESSION - 1) {
-                currentVideoIndexInSession++;
-                if (currentSession === TOTAL_SESSIONS) await finishAll();
-                else await completeCurrentSession();
-            } else {
-                currentVideoIndexInSession++;
-                loadNext();
-            }
         } else {
             prompt.innerHTML = '취소되었습니다.<br>계속하려면 아무 키나 누르세요.';
             prompt.style.display = 'block';
@@ -543,21 +554,17 @@ function initializeExperiment() {
         const sessionStart = parseInt(localStorage.getItem(STORAGE_KEY_SESSION_START)) || sessionEndTime;
         const sessionDuration = Math.round((sessionEndTime - sessionStart) / 1000);
         
+        // Upload session 2 summary
+        await uploadSessionSummary(2, currentSessionEvents, sessionDuration);
+        
         document.getElementById('experiment').style.display = 'none';
         document.getElementById('completion').style.display = 'flex';
         
-        // 1. Session 2 요약본 업로드
-        await uploadSessionSummary(2, currentSessionEvents, sessionDuration);
-        
-        // 2. [错峰传输] 최종 데이터 전송 전 Netlify 서버 충돌 방지 1.5초 대기
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // 3. 최종 전체 데이터 업로드 (Ultimate mega payload)
         await uploadFinalSummary();
         
         localStorage.removeItem(STORAGE_KEY_PROGRESS);
         
-        let timeLeft = 8;
+        let timeLeft = 5;
         const timer = setInterval(() => {
             timeLeft--;
             document.getElementById('countdown').textContent = timeLeft;
@@ -567,14 +574,13 @@ function initializeExperiment() {
                 document.getElementById('finalMsg').style.display = 'block';
             }
         }, 1000);
-        
-        // 모든 통신 끝, 더이상 아무것도 안해도 되므로 lock 풀 필요 없음
     }
 
+    // Event listeners
     document.getElementById('okBtn').onclick = saveDesc;
     document.getElementById('cancelBtn').onclick = cancelDescription;
 
-    // 키보드 리스너: isTransitioning 이 true 일 때는 절대 어떤 행동도 허용하지 않음
+    // Keyboard controls
     document.onkeydown = (e) => {
         if (document.getElementById('experiment').style.display === 'none') return;
         
@@ -585,16 +591,21 @@ function initializeExperiment() {
         }
         
         if (v.style.display === 'none' && prompt.style.display !== 'none') {
-            if (isTransitioning) return; // 🌟 핵심 잠금 장치: 통신 중이거나 화면 전환 준비 중이면 키보드 씹음
+            if (isTransitioning) return;
             
             prompt.style.display = 'none';
             v.style.display = 'block';
+            
+            // If we're waiting for next session, load the first video
             if (isWaitingForNextSession) {
                 isWaitingForNextSession = false;
                 loadNext();
             } else {
-                if (!v.src || v.src === '') loadNext();
-                else v.play().catch(e => console.log('Play interrupted'));
+                if (!v.src || v.src === '') {
+                    loadNext();
+                } else {
+                    v.play().catch(e => console.log('Play interrupted'));
+                }
             }
             return;
         }
@@ -605,6 +616,7 @@ function initializeExperiment() {
                 pauseAndFineTune();
                 return;
             }
+            
             if (fineTuning && v.paused) {
                 if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
                     e.preventDefault();
@@ -622,9 +634,16 @@ function initializeExperiment() {
     };
 
     v.onended = () => {
-        isVideoEndedMode = true; 
         const videoId = v.src.includes('practice') ? 'practice' : sessionVideos[currentSession][currentVideoIndexInSession];
-        currentEvents.push({ vid: videoId, session: currentSession, ev: evtCnt + 1, time: v.duration, desc: '[auto-end]' });
+        
+        currentEvents.push({
+            vid: videoId,
+            session: currentSession,
+            ev: evtCnt + 1,
+            time: v.duration,
+            desc: '[auto-end]'
+        });
+        
         evtCnt++;
         counter.textContent = 'Events: ' + evtCnt;
         descInput.value = '';
@@ -634,10 +653,12 @@ function initializeExperiment() {
     };
 }
 
-// ====== 4. ROBUST Upload Functions ======
+// ====== 4. Upload Functions ======
 
 function getGlobalData() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY_ALL_DATA)) || []; } catch { return []; }
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY_ALL_DATA)) || [];
+    } catch { return []; }
 }
 
 function appendToDisk(events) {
@@ -646,135 +667,105 @@ function appendToDisk(events) {
     localStorage.setItem(STORAGE_KEY_ALL_DATA, JSON.stringify(all));
 }
 
-async function fetchWithRetry(url, options, retries = 3) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            const response = await fetch(url, options);
-            if (response.ok) return response;
-            console.warn(`Netlify upload attempt ${i + 1} failed. Status: ${response.status}`);
-        } catch (err) {
-            console.warn(`Netlify upload attempt ${i + 1} error:`, err);
-        }
-        await new Promise(res => setTimeout(res, 1000)); // 1초 대기 후 재시도
-    }
-    throw new Error('All retries failed');
-}
-
+// Upload video
 async function uploadVideo(videoId, events, session, position) {
     appendToDisk(events);
+    
     const pid = getParticipantID();
     const formData = new FormData();
     formData.append('form-name', 'after-scan-event-segmentation');
-    formData.append('bot-field', '');
     formData.append('prolific_pid', pid);
     formData.append('study_id', 'after_scan_event_segmentation');
-
+    
     if (videoId === 'practice') {
         formData.append('session_id', `sess_${pid}_practice`);
         formData.append('video_position_in_session', 'practice');
-        formData.append('video_position_display', 'practice');      // ✅ 添加
+        formData.append('video_position_display', 'practice');
         formData.append('upload_type', 'practice');
     } else {
         formData.append('session_id', `sess_${pid}_session${session}`);
         formData.append('video_position_in_session', (position + 1).toString());
-        formData.append('video_position_display', `${position + 1}/${VIDEOS_PER_SESSION}`); // ✅ 添加
+        formData.append('video_position_display', `${position + 1}/${VIDEOS_PER_SESSION}`);
         formData.append('upload_type', 'main');
     }
-
+    
     formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
-    formData.append('session_end_time', '');                       // ✅ 单视频留空
-    formData.append('session_duration_seconds', '');               // ✅ 单视频留空
-    formData.append('session_duration_formatted', '');             // ✅ 单视频留空
     formData.append('video_index', videoId.toString());
     formData.append('events', JSON.stringify(events));
     formData.append('completion_time', new Date().toISOString());
-    formData.append('videos_completed', '');                       // ✅ 单视频留空
-    formData.append('total_events_recorded', '');                  // ✅ 单视频留空
+    formData.append('bot-field', '');
 
     try {
-        await fetchWithRetry('/', { method: 'POST', body: formData });
+        await fetch('/', { method: 'POST', body: formData });
         showUploadStatus(`✅ 영상 ${videoId} 저장 완료`);
         return true;
     } catch (e) {
-        showUploadStatus(`❌ 저장 실패 (재시도 초과)`, true);
+        showUploadStatus(`❌ 저장 실패`, true);
+        console.error(e);
         return false;
     }
 }
 
+// Upload session summary
 async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     const pid = getParticipantID();
     const formData = new FormData();
     formData.append('form-name', 'after-scan-event-segmentation');
-    formData.append('bot-field', '');
     formData.append('prolific_pid', pid);
     formData.append('study_id', 'after_scan_event_segmentation');
     formData.append('session_id', `sess_${pid}_session${sessionNum}_summary`);
     formData.append('upload_type', 'session_summary');
     formData.append('session_number', sessionNum.toString());
     formData.append('session_duration_seconds', durationSeconds.toString());
-    formData.append('session_duration_formatted', formatDuration(durationSeconds)); // ✅ 格式化
-    formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
-    formData.append('session_end_time', new Date().toISOString());                  // ✅ 填写结束时间
-    formData.append('video_index', '');                                             // ✅ 摘要可为空
-    formData.append('video_position_in_session', '');
-    formData.append('video_position_display', '');
-
-    const uniqueVideosCount = new Set(sessionData.map(e => e.vid)).size;
-    formData.append('videos_completed', uniqueVideosCount.toString());
-    formData.append('total_events_recorded', sessionData.length.toString());
+    formData.append('session_duration_formatted', formatDuration(durationSeconds));
+    formData.append('videos_completed', sessionData.length.toString());
     formData.append('total_videos_in_session', VIDEOS_PER_SESSION.toString());
-
+    formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
+    formData.append('session_end_time', new Date().toISOString());
     formData.append('events', JSON.stringify(sessionData));
     formData.append('completion_time', new Date().toISOString());
+    formData.append('bot-field', '');
 
     try {
-        await fetchWithRetry('/', { method: 'POST', body: formData });
-        showUploadStatus(`✅ Session ${sessionNum} 요약본 저장 완료!`);
+        await fetch('/', { method: 'POST', body: formData });
+        showUploadStatus(`✅ Session ${sessionNum} 완료! (${formatDuration(durationSeconds)})`);
+        console.log(`✅ Session ${sessionNum} summary uploaded`);
     } catch (e) {
         console.error(`❌ Session summary upload failed:`, e);
     }
 }
+
+// Upload final summary
 async function uploadFinalSummary() {
     const allData = getGlobalData();
     const pid = getParticipantID();
     const formData = new FormData();
     formData.append('form-name', 'after-scan-event-segmentation');
-    formData.append('bot-field', '');                             // 蜜罐字段
     formData.append('prolific_pid', pid);
     formData.append('study_id', 'after_scan_event_segmentation');
     formData.append('session_id', `sess_${pid}_final`);
-    formData.append('upload_type', 'final_all_data');
-    formData.append('video_index', 'ALL_VIDEOS');
-
-    // 以下字段为 HTML 表单中存在、但之前遗漏的
-    formData.append('video_position_in_session', '');             // 最终汇总，留空
-    formData.append('video_position_display', '');               // 留空
-    formData.append('session_start_time', '');                   // 留空
-    formData.append('session_end_time', new Date().toISOString()); // 最终提交时间
-    formData.append('session_duration_seconds', '');              // 不适用
-    formData.append('session_duration_formatted', '');            // 不适用
-
-    const uniqueVideosCount = new Set(allData.map(e => e.vid)).size;
-    formData.append('videos_completed', uniqueVideosCount.toString());
-    formData.append('total_events_recorded', allData.length.toString());
-
+    formData.append('upload_type', 'final');
+    formData.append('video_index', 'ALL');
     formData.append('events', JSON.stringify(allData));
     formData.append('completion_time', new Date().toISOString());
+    formData.append('bot-field', '');
 
     try {
-        await fetchWithRetry('/', { method: 'POST', body: formData });
-        console.log('✅ Final MEGA summary uploaded');
+        await fetch('/', { method: 'POST', body: formData });
+        console.log('✅ Final summary uploaded');
     } catch (e) {
-        console.error('❌ Final MEGA summary failed', e);
+        console.error('❌ Final summary failed', e);
     }
 }
 
+// Helper function for formatting duration
 function formatDuration(seconds) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}분 ${secs}초`;
 }
 
+// Show status
 function showUploadStatus(msg, isError = false) {
     const el = document.getElementById('uploadStatus');
     el.style.display = 'block';
