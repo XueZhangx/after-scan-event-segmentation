@@ -687,17 +687,30 @@ async function uploadVideo(videoId, events, session, position) {
     formData.append('session_duration_seconds', '');
     formData.append('session_duration_formatted', '');
     formData.append('video_index', videoId.toString());
-    formData.append('events', JSON.stringify(events));
+    
+    const eventsJson = JSON.stringify(events);
+    console.log(`[Upload] Video ${videoId} events size: ${eventsJson.length} bytes`);
+    formData.append('events', eventsJson);
     formData.append('completion_time', new Date().toISOString());
     formData.append('videos_completed', '');
     formData.append('total_events_recorded', '');
 
+    console.log(`[Upload] Starting upload for video ${videoId}...`);
     try {
-        await fetchWithRetry('/', { method: 'POST', body: formData });
-        showUploadStatus(`✅ 영상 ${videoId} 저장 완료`);
-        return true;
+        const response = await fetch('/', { method: 'POST', body: formData });
+        console.log(`[Upload] Video ${videoId} response status: ${response.status}`);
+        const text = await response.text();
+        console.log(`[Upload] Video ${videoId} response body:`, text.substring(0, 200)); // 前200字符
+        if (response.ok) {
+            showUploadStatus(`✅ 영상 ${videoId} 저장 완료`);
+            return true;
+        } else {
+            showUploadStatus(`❌ 저장 실패 (status: ${response.status})`, true);
+            return false;
+        }
     } catch (e) {
-        showUploadStatus(`❌ 저장 실패 (재시도 초과)`, true);
+        console.error(`[Upload] Video ${videoId} fetch error:`, e);
+        showUploadStatus(`❌ 저장 실패 (네트워크 오류)`, true);
         return false;
     }
 }
@@ -725,14 +738,24 @@ async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     formData.append('total_events_recorded', sessionData.length.toString());
     formData.append('total_videos_in_session', VIDEOS_PER_SESSION.toString());
 
-    formData.append('events', JSON.stringify(sessionData));
+    const eventsJson = JSON.stringify(sessionData);
+    console.log(`[Upload] Session ${sessionNum} summary size: ${eventsJson.length} bytes`);
+    formData.append('events', eventsJson);
     formData.append('completion_time', new Date().toISOString());
 
+    console.log(`[Upload] Starting session ${sessionNum} summary upload...`);
     try {
-        await fetchWithRetry('/', { method: 'POST', body: formData });
-        showUploadStatus(`✅ Session ${sessionNum} 요약본 저장 완료!`);
+        const response = await fetch('/', { method: 'POST', body: formData });
+        console.log(`[Upload] Session ${sessionNum} summary response status: ${response.status}`);
+        const text = await response.text();
+        console.log(`[Upload] Session ${sessionNum} summary response body:`, text.substring(0, 200));
+        if (response.ok) {
+            showUploadStatus(`✅ Session ${sessionNum} 요약본 저장 완료!`);
+        } else {
+            showUploadStatus(`❌ Session ${sessionNum} 요약 실패 (${response.status})`, true);
+        }
     } catch (e) {
-        console.error(`❌ Session summary upload failed:`, e);
+        console.error(`[Upload] Session ${sessionNum} summary error:`, e);
     }
 }
 
@@ -758,12 +781,22 @@ async function uploadFinalSummary() {
     formData.append('videos_completed', uniqueVideosCount.toString());
     formData.append('total_events_recorded', allData.length.toString());
 
-    formData.append('events', JSON.stringify(allData));
+    const eventsJson = JSON.stringify(allData);
+    console.log(`[Upload] Final summary size: ${eventsJson.length} bytes`);
+    formData.append('events', eventsJson);
     formData.append('completion_time', new Date().toISOString());
 
+    console.log(`[Upload] Starting final summary upload...`);
     try {
-        await fetchWithRetry('/', { method: 'POST', body: formData });
-        console.log('✅ Final MEGA summary uploaded');
+        const response = await fetch('/', { method: 'POST', body: formData });
+        console.log(`[Upload] Final summary response status: ${response.status}`);
+        const text = await response.text();
+        console.log(`[Upload] Final summary response body:`, text.substring(0, 200));
+        if (response.ok) {
+            console.log('✅ Final MEGA summary uploaded');
+        } else {
+            console.error(`❌ Final summary upload failed with status ${response.status}`);
+        }
     } catch (e) {
         console.error('❌ Final MEGA summary failed', e);
     }
