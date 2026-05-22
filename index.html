@@ -489,10 +489,11 @@ function initializeExperiment() {
             return; 
         }
         
-        // 2. Minimum 6 words constraint (split by one or more spaces)
-        const wordCount = txt.split(/\s+/).length;
-        if (wordCount < 6) {
-            alert(`설명은 최소 6단어 이상이어야 합니다. (현재: ${wordCount}단어)\nThe description must be at least 6 words.`);
+        // 2. Minimum 6 characters constraint (excluding spaces)
+        // 去除所有空格后，计算剩余纯字符（字）的数量
+        const validCharCount = txt.replace(/\s+/g, '').length;
+        if (validCharCount < 6) {
+            alert(`설명은 공백 제외 최소 6글자 이상이어야 합니다. (현재: ${validCharCount}글자)\nThe description must be at least 6 characters long (excluding spaces).`);
             descInput.focus();
             return;
         }
