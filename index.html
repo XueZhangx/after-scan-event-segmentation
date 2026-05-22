@@ -662,28 +662,34 @@ async function fetchWithRetry(url, options, retries = 3) {
 
 async function uploadVideo(videoId, events, session, position) {
     appendToDisk(events);
-    
     const pid = getParticipantID();
     const formData = new FormData();
     formData.append('form-name', 'after-scan-event-segmentation');
     formData.append('bot-field', '');
     formData.append('prolific_pid', pid);
     formData.append('study_id', 'after_scan_event_segmentation');
-    
+
     if (videoId === 'practice') {
         formData.append('session_id', `sess_${pid}_practice`);
         formData.append('video_position_in_session', 'practice');
+        formData.append('video_position_display', 'practice');      // ✅ 新增
         formData.append('upload_type', 'practice');
     } else {
         formData.append('session_id', `sess_${pid}_session${session}`);
         formData.append('video_position_in_session', (position + 1).toString());
+        formData.append('video_position_display', `${position + 1}/${VIDEOS_PER_SESSION}`);  // ✅ 新增
         formData.append('upload_type', 'main');
     }
-    
+
     formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
+    formData.append('session_end_time', '');                        // ✅ 新增（单视频不填）
+    formData.append('session_duration_seconds', '');               // ✅ 新增
+    formData.append('session_duration_formatted', '');             // ✅ 新增
     formData.append('video_index', videoId.toString());
     formData.append('events', JSON.stringify(events));
     formData.append('completion_time', new Date().toISOString());
+    formData.append('videos_completed', '');                       // ✅ 新增（单视频不填）
+    formData.append('total_events_recorded', '');                  // ✅ 新增
 
     try {
         await fetchWithRetry('/', { method: 'POST', body: formData });
@@ -706,13 +712,18 @@ async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     formData.append('upload_type', 'session_summary');
     formData.append('session_number', sessionNum.toString());
     formData.append('session_duration_seconds', durationSeconds.toString());
-    
-    // 정확한 통계 수치 전송
+    formData.append('session_duration_formatted', formatDuration(durationSeconds));  // ✅ 加上格式化
+    formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
+    formData.append('session_end_time', new Date().toISOString());                  // ✅ 新增
+    formData.append('video_index', '');                                             // ✅ 必填，摘要可不填
+    formData.append('video_position_in_session', '');
+    formData.append('video_position_display', '');
+
     const uniqueVideosCount = new Set(sessionData.map(e => e.vid)).size;
     formData.append('videos_completed', uniqueVideosCount.toString());
-    formData.append('total_events_recorded', sessionData.length.toString()); 
+    formData.append('total_events_recorded', sessionData.length.toString());
     formData.append('total_videos_in_session', VIDEOS_PER_SESSION.toString());
-    
+
     formData.append('events', JSON.stringify(sessionData));
     formData.append('completion_time', new Date().toISOString());
 
@@ -724,30 +735,37 @@ async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     }
 }
 
-async function uploadFinalSummary() {
-    const allData = getGlobalData();
+async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     const pid = getParticipantID();
     const formData = new FormData();
     formData.append('form-name', 'after-scan-event-segmentation');
     formData.append('bot-field', '');
     formData.append('prolific_pid', pid);
     formData.append('study_id', 'after_scan_event_segmentation');
-    formData.append('session_id', `sess_${pid}_final`);
-    formData.append('upload_type', 'final_all_data');
-    formData.append('video_index', 'ALL_VIDEOS');
-    
-    const uniqueVideosCount = new Set(allData.map(e => e.vid)).size;
+    formData.append('session_id', `sess_${pid}_session${sessionNum}_summary`);
+    formData.append('upload_type', 'session_summary');
+    formData.append('session_number', sessionNum.toString());
+    formData.append('session_duration_seconds', durationSeconds.toString());
+    formData.append('session_duration_formatted', formatDuration(durationSeconds));  // ✅ 加上格式化
+    formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
+    formData.append('session_end_time', new Date().toISOString());                  // ✅ 新增
+    formData.append('video_index', '');                                             // ✅ 必填，摘要可不填
+    formData.append('video_position_in_session', '');
+    formData.append('video_position_display', '');
+
+    const uniqueVideosCount = new Set(sessionData.map(e => e.vid)).size;
     formData.append('videos_completed', uniqueVideosCount.toString());
-    formData.append('total_events_recorded', allData.length.toString());
-    
-    formData.append('events', JSON.stringify(allData));
+    formData.append('total_events_recorded', sessionData.length.toString());
+    formData.append('total_videos_in_session', VIDEOS_PER_SESSION.toString());
+
+    formData.append('events', JSON.stringify(sessionData));
     formData.append('completion_time', new Date().toISOString());
 
     try {
         await fetchWithRetry('/', { method: 'POST', body: formData });
-        console.log('✅ Final MEGA summary uploaded');
+        showUploadStatus(`✅ Session ${sessionNum} 요약본 저장 완료!`);
     } catch (e) {
-        console.error('❌ Final MEGA summary failed', e);
+        console.error(`❌ Session summary upload failed:`, e);
     }
 }
 
