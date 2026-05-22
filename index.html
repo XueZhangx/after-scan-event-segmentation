@@ -666,6 +666,7 @@ async function uploadVideo(videoId, events, session, position) {
     const pid = getParticipantID();
     const formData = new FormData();
     formData.append('form-name', 'after-scan-event-segmentation');
+    formData.append('bot-field', '');
     formData.append('prolific_pid', pid);
     formData.append('study_id', 'after_scan_event_segmentation');
     
@@ -698,6 +699,7 @@ async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     const pid = getParticipantID();
     const formData = new FormData();
     formData.append('form-name', 'after-scan-event-segmentation');
+    formData.append('bot-field', '');
     formData.append('prolific_pid', pid);
     formData.append('study_id', 'after_scan_event_segmentation');
     formData.append('session_id', `sess_${pid}_session${sessionNum}_summary`);
@@ -727,6 +729,7 @@ async function uploadFinalSummary() {
     const pid = getParticipantID();
     const formData = new FormData();
     formData.append('form-name', 'after-scan-event-segmentation');
+    formData.append('bot-field', '');
     formData.append('prolific_pid', pid);
     formData.append('study_id', 'after_scan_event_segmentation');
     formData.append('session_id', `sess_${pid}_final`);
