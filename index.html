@@ -133,27 +133,6 @@
   </div>
 </div>
 
-<!-- Hidden Netlify Form -->
-<form id="netlify-data-form" style="display: none;" netlify netlify-honeypot="bot-field" name="after-scan-event-segmentation">
-  <input type="hidden" name="form-name" value="after-scan-event-segmentation"> 
-  <input type="hidden" name="prolific_pid">
-  <input type="hidden" name="study_id">
-  <input type="hidden" name="session_id">
-  <input type="hidden" name="video_index">
-  <input type="hidden" name="video_position_in_session">
-  <input type="hidden" name="video_position_display">
-  <input type="hidden" name="session_start_time">
-  <input type="hidden" name="session_end_time">
-  <input type="hidden" name="session_duration_seconds">
-  <input type="hidden" name="session_duration_formatted">
-  <input type="hidden" name="upload_type">
-  <input type="hidden" name="events">
-  <input type="hidden" name="completion_time">
-  <input type="hidden" name="videos_completed">
-  <input type="hidden" name="total_events_recorded">
-  <input type="text" name="bot-field" style="display: none;">
-</form>
-
 <script>
 // ====== Configuration ======
 const SELECTED_VIDEOS = [ 1, 2, 4, 6, 8, 9, 12, 14,15, 17, 18, 19, 20, 21, 26, 27];
@@ -163,7 +142,6 @@ const TOTAL_SESSIONS = 2;
 
 const STORAGE_KEY_PROGRESS = 'seeg_kor_v8_progress';
 const STORAGE_KEY_NAME = 'seeg_kor_v8_name';
-const STORAGE_KEY_ALL_DATA = 'seeg_kor_v8_alldata';
 const STORAGE_KEY_SESSION = 'seeg_kor_v8_session';
 const STORAGE_KEY_VIDEO_ORDER = 'seeg_kor_v8_order';
 const STORAGE_KEY_SESSION_START = 'seeg_kor_v8_session_start';
@@ -312,7 +290,7 @@ document.getElementById('realStartBtn').addEventListener('click', function() {
     initializeExperiment();
 });
 
-// ====== 核心实验逻辑（旧版稳定视频控制） ======
+// ====== 核心实验逻辑（旧版稳定控制） ======
 function initializeExperiment() {
     let evtCnt = 0;
     let fineTuning = false;
@@ -577,169 +555,81 @@ function initializeExperiment() {
     };
 }
 
-// ====== 上传函数（含防重随机字段 + 详细日志） ======
+// ====== 新的上传函数（基于 Netlify Function） ======
 
-function getGlobalData() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY_ALL_DATA)) || []; } catch { return []; }
-}
-
-function appendToDisk(events) {
-    const all = getGlobalData();
-    all.push(...events);
-    localStorage.setItem(STORAGE_KEY_ALL_DATA, JSON.stringify(all));
-}
-
-async function uploadVideo(videoId, events, session, position) {
-    appendToDisk(events);
-    const pid = getParticipantID();
-    const formData = new FormData();
-    formData.append('form-name', 'after-scan-event-segmentation');
-    formData.append('bot-field', '');
-    formData.append('prolific_pid', pid);
-    formData.append('study_id', 'after_scan_event_segmentation');
-
-    if (videoId === 'practice') {
-        formData.append('session_id', `sess_${pid}_practice`);
-        formData.append('video_position_in_session', 'practice');
-        formData.append('video_position_display', 'practice');
-        formData.append('upload_type', 'practice');
-    } else {
-        formData.append('session_id', `sess_${pid}_session${session}`);
-        formData.append('video_position_in_session', (position + 1).toString());
-        formData.append('video_position_display', `${position + 1}/${VIDEOS_PER_SESSION}`);
-        formData.append('upload_type', 'main');
-    }
-
-    formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
-    formData.append('session_end_time', '');
-    formData.append('session_duration_seconds', '');
-    formData.append('session_duration_formatted', '');
-    formData.append('video_index', videoId.toString());
-    
-    const eventsJson = JSON.stringify(events);
-    console.log(`[Upload] Video ${videoId} events size: ${eventsJson.length} bytes`);
-    formData.append('events', eventsJson);
-    formData.append('completion_time', new Date().toISOString());
-    formData.append('videos_completed', '');
-    formData.append('total_events_recorded', '');
-
-    // 防重字段
-    formData.append('x-nonce', Date.now().toString() + Math.random().toString(36).substring(2));
-    formData.append('x-timestamp', new Date().toISOString());
-
-    console.log(`[Upload] Starting upload for video ${videoId}...`);
+// 通用提交函数，发送 JSON 到 /api/submit
+async function submitToFunction(payload) {
+    console.log(`[Submit] Sending payload type=${payload.type}, size=${JSON.stringify(payload).length} bytes`);
     try {
-        const response = await fetch('/', { method: 'POST', body: formData });
-        console.log(`[Upload] Video ${videoId} response status: ${response.status}`);
-        const text = await response.text();
-        console.log(`[Upload] Video ${videoId} response body:`, text.substring(0, 200));
+        const response = await fetch('/api/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        console.log(`[Submit] Response status: ${response.status}`);
         if (response.ok) {
-            showUploadStatus(`✅ 영상 ${videoId} 저장 완료`);
+            showUploadStatus(`✅ 데이터 저장 완료 (${payload.type})`);
             return true;
         } else {
-            showUploadStatus(`❌ 저장 실패 (status: ${response.status})`, true);
+            const text = await response.text();
+            console.error(`[Submit] Failed: ${response.status}`, text);
+            showUploadStatus(`❌ 저장 실패 (${response.status})`, true);
             return false;
         }
-    } catch (e) {
-        console.error(`[Upload] Video ${videoId} fetch error:`, e);
+    } catch (err) {
+        console.error(`[Submit] Network error:`, err);
         showUploadStatus(`❌ 저장 실패 (네트워크 오류)`, true);
         return false;
     }
 }
 
+async function uploadVideo(videoId, events, session, position) {
+    const pid = getParticipantID();
+    return submitToFunction({
+        participant: pid,
+        study: 'after_scan_event_segmentation',
+        type: 'video',
+        videoId: videoId,
+        session: session,
+        position: position + 1,
+        totalVideosInSession: VIDEOS_PER_SESSION,
+        events: events,
+        timestamp: new Date().toISOString()
+    });
+}
+
 async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     const pid = getParticipantID();
-    const formData = new FormData();
-    formData.append('form-name', 'after-scan-event-segmentation');
-    formData.append('bot-field', '');
-    formData.append('prolific_pid', pid);
-    formData.append('study_id', 'after_scan_event_segmentation');
-    formData.append('session_id', `sess_${pid}_session${sessionNum}_summary`);
-    formData.append('upload_type', 'session_summary');
-    formData.append('session_number', sessionNum.toString());
-    formData.append('session_duration_seconds', durationSeconds.toString());
-    formData.append('session_duration_formatted', formatDuration(durationSeconds));
-    formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
-    formData.append('session_end_time', new Date().toISOString());
-    formData.append('video_index', '');
-    formData.append('video_position_in_session', '');
-    formData.append('video_position_display', '');
-
     const uniqueVideosCount = new Set(sessionData.map(e => e.vid)).size;
-    formData.append('videos_completed', uniqueVideosCount.toString());
-    formData.append('total_events_recorded', sessionData.length.toString());
-    formData.append('total_videos_in_session', VIDEOS_PER_SESSION.toString());
-
-    const eventsJson = JSON.stringify(sessionData);
-    console.log(`[Upload] Session ${sessionNum} summary size: ${eventsJson.length} bytes`);
-    formData.append('events', eventsJson);
-    formData.append('completion_time', new Date().toISOString());
-
-    // 防重字段
-    formData.append('x-nonce', Date.now().toString() + Math.random().toString(36).substring(2));
-    formData.append('x-timestamp', new Date().toISOString());
-
-    console.log(`[Upload] Starting session ${sessionNum} summary upload...`);
-    try {
-        const response = await fetch('/', { method: 'POST', body: formData });
-        console.log(`[Upload] Session ${sessionNum} summary response status: ${response.status}`);
-        const text = await response.text();
-        console.log(`[Upload] Session ${sessionNum} summary response body:`, text.substring(0, 200));
-        if (response.ok) {
-            showUploadStatus(`✅ Session ${sessionNum} 요약본 저장 완료!`);
-        } else {
-            showUploadStatus(`❌ Session ${sessionNum} 요약 실패 (${response.status})`, true);
-        }
-    } catch (e) {
-        console.error(`[Upload] Session ${sessionNum} summary error:`, e);
-    }
+    return submitToFunction({
+        participant: pid,
+        study: 'after_scan_event_segmentation',
+        type: 'session_summary',
+        session: sessionNum,
+        durationSeconds: durationSeconds,
+        videosCompleted: uniqueVideosCount,
+        totalVideosInSession: VIDEOS_PER_SESSION,
+        totalEventsRecorded: sessionData.length,
+        events: sessionData,
+        sessionStart: localStorage.getItem(STORAGE_KEY_SESSION_START) || '',
+        sessionEnd: new Date().toISOString(),
+        timestamp: new Date().toISOString()
+    });
 }
 
 async function uploadFinalSummary() {
-    const allData = getGlobalData();
     const pid = getParticipantID();
-    const formData = new FormData();
-    formData.append('form-name', 'after-scan-event-segmentation');
-    formData.append('bot-field', '');
-    formData.append('prolific_pid', pid);
-    formData.append('study_id', 'after_scan_event_segmentation');
-    formData.append('session_id', `sess_${pid}_final`);
-    formData.append('upload_type', 'final_all_data');
-    formData.append('video_index', 'ALL_VIDEOS');
-    formData.append('video_position_in_session', '');
-    formData.append('video_position_display', '');
-    formData.append('session_start_time', '');
-    formData.append('session_end_time', new Date().toISOString());
-    formData.append('session_duration_seconds', '');
-    formData.append('session_duration_formatted', '');
-
-    const uniqueVideosCount = new Set(allData.map(e => e.vid)).size;
-    formData.append('videos_completed', uniqueVideosCount.toString());
-    formData.append('total_events_recorded', allData.length.toString());
-
-    const eventsJson = JSON.stringify(allData);
-    console.log(`[Upload] Final summary size: ${eventsJson.length} bytes`);
-    formData.append('events', eventsJson);
-    formData.append('completion_time', new Date().toISOString());
-
-    // 防重字段
-    formData.append('x-nonce', Date.now().toString() + Math.random().toString(36).substring(2));
-    formData.append('x-timestamp', new Date().toISOString());
-
-    console.log(`[Upload] Starting final summary upload...`);
-    try {
-        const response = await fetch('/', { method: 'POST', body: formData });
-        console.log(`[Upload] Final summary response status: ${response.status}`);
-        const text = await response.text();
-        console.log(`[Upload] Final summary response body:`, text.substring(0, 200));
-        if (response.ok) {
-            console.log('✅ Final MEGA summary uploaded');
-        } else {
-            console.error(`❌ Final summary upload failed with status ${response.status}`);
-        }
-    } catch (e) {
-        console.error('❌ Final MEGA summary failed', e);
-    }
+    // 最终摘要通常不需要重复发送所有事件，我们可以只发送统计信息，
+    // 但如果你想发送全量数据，可以继续从 localStorage 读取（但我们已经没有本地存储了）。
+    // 这里可以选择只发送统计，或者直接从 currentSessionEvents 发送（已经包含在 session summary 中）。
+    // 为安全起见，我们可以发送一个简单的完成标记。
+    return submitToFunction({
+        participant: pid,
+        study: 'after_scan_event_segmentation',
+        type: 'final',
+        totalSessions: TOTAL_SESSIONS,
+        timestamp: new Date().toISOString()
+    });
 }
 
 function formatDuration(seconds) {
