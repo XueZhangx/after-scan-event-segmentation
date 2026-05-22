@@ -14,24 +14,19 @@
     cursor: default !important;
   }
   
-  /* Prompt & Counter */
   #prompt{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:26px;text-align:center;line-height: 1.5; display:none;}
   #counter{position:fixed;top:20px;right:20px;font-size:24px}
   #help{position:fixed;bottom:20px;left:20px;font-size:14px;color:#ccc}
   #adjustHint{position:fixed;bottom:60px;left:20px;font-size:14px;color:#ccc;display:none}
   
-  /* Description Box */
   #descBox{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#222;padding:20px 30px;border-radius:8px;display:none;z-index:1000;}
   #descBox input{width:350px;font-size:18px;padding:6px 10px}
   #descBox button{margin-left:10px;padding:6px 12px;font-size:16px;cursor: pointer;}
   
-  /* Consent Overlay */
   #consent{position:fixed;top:0;left:0;width:100vw;height:100vh;background:#000;z-index:2000;display:flex;align-items:center;justify-content:center; overflow-y: auto;}
   
-  /* Completion Overlay */
   #completion{position:fixed;top:0;left:0;width:100vw;height:100vh;background:#000;z-index:2000;display:none;flex-direction:column;align-items:center;justify-content:center;}
   
-  /* Starter Menu */
   #starter {
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
       background: #111; z-index: 1500;
@@ -45,11 +40,9 @@
   .input-group label { display: block; margin-bottom: 8px; font-weight: bold; }
   .input-group input { padding: 10px; width: 100%; box-sizing: border-box; font-size: 16px; }
   
-  /* Countdown Styles */
   .wait-warning { color: #FF9800; font-size: 20px; margin-bottom: 20px; font-weight: bold;}
   .success-msg { color: #4CAF50; font-size: 20px; margin-bottom: 20px; display: none; }
   
-  /* Upload Status Indicator */
   #uploadStatus {
       position: fixed; bottom: 20px; right: 20px;
       background: rgba(0,0,0,0.8); color: #4CAF50;
@@ -61,10 +54,9 @@
 </head>
 <body>
 
-<!-- Upload Status Indicator -->
 <div id="uploadStatus"></div>
 
-<!-- 1. Consent Form (Korean) -->
+<!-- Consent -->
 <div id="consent">
   <div style="max-width: 800px; margin: 50px auto; padding: 30px; background: #222; border-radius: 10px; border: 1px solid #444;">
     <h2>이벤트 분할 연구 (Event Segmentation Study)</h2>
@@ -95,7 +87,7 @@
   </div>
 </div>
 
-<!-- 2. Starter Menu (Korean) -->
+<!-- Starter -->
 <div id="starter">
     <h2>시작 구간 선택 (Select Start Point)</h2>
     <p style="color:#ccc;">새로고침을 하셨거나 중단된 경우, 아래에서 시작할 위치를 선택하세요.</p>
@@ -107,7 +99,7 @@
     <button id="realStartBtn">실험 시작 (Start Experiment)</button>
 </div>
 
-<!-- 3. Experiment Interface (Korean) -->
+<!-- Experiment -->
 <div id="experiment" style="display: none;">
   <div id="prompt">로딩 중... (Loading)</div>
   <div id="counter">Events: 0</div>
@@ -130,7 +122,7 @@
   </div>
 </div>
 
-<!-- 4. Completion Screen (Korean) -->
+<!-- Completion -->
 <div id="completion">
   <h2>참여해 주셔서 감사합니다!</h2>
   <div id="waitMsg" class="wait-warning">
@@ -141,7 +133,7 @@
   </div>
 </div>
 
-<!-- Netlify Form (HIDDEN) -->
+<!-- Hidden Netlify Form -->
 <form id="netlify-data-form" style="display: none;" netlify netlify-honeypot="bot-field" name="after-scan-event-segmentation">
   <input type="hidden" name="form-name" value="after-scan-event-segmentation"> 
   <input type="hidden" name="prolific_pid">
@@ -320,7 +312,7 @@ document.getElementById('realStartBtn').addEventListener('click', function() {
     initializeExperiment();
 });
 
-// ====== 核心实验逻辑（采用旧版稳定的视频播放与提交控制） ======
+// ====== 核心实验逻辑（旧版稳定视频控制） ======
 function initializeExperiment() {
     let evtCnt = 0;
     let fineTuning = false;
@@ -334,13 +326,11 @@ function initializeExperiment() {
     const evNumSpan = document.getElementById('evNum');
     const adjustHint = document.getElementById('adjustHint');
 
-    // 加载第一个视频
     loadNext();
 
     function loadNext() {
         isTransitioning = false;
         
-        // 处理练习模式
         if (isPracticeMode) {
             isPracticeMode = false;
             v.src = 'practice.mp4';
@@ -353,26 +343,18 @@ function initializeExperiment() {
             return;
         }
         
-        // 检查当前 session 是否已完成（旧版关键守卫）
         if (currentVideoIndexInSession >= VIDEOS_PER_SESSION) {
             if (currentSession === TOTAL_SESSIONS) {
                 finishAll();
                 return;
             }
-            // session 完成，上传摘要并等待下一个 session
             completeCurrentSession();
             return;
         }
 
-        // 保存进度
-        const progress = {
-            session: currentSession,
-            videoIndex: currentVideoIndexInSession,
-            timestamp: Date.now()
-        };
+        const progress = { session: currentSession, videoIndex: currentVideoIndexInSession, timestamp: Date.now() };
         localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
 
-        // 加载视频
         const videoNum = sessionVideos[currentSession][currentVideoIndexInSession];
         v.src = `v${videoNum}.mp4`;
         
@@ -392,19 +374,14 @@ function initializeExperiment() {
         const sessionDuration = Math.round((sessionEndTime - sessionStart) / 1000);
         
         console.log(`Session ${currentSession} completed with events:`, currentSessionEvents);
-        
-        // 上传 session 摘要
         await uploadSessionSummary(currentSession, currentSessionEvents, sessionDuration);
         
-        // 切换到下一个 session
         currentSession++;
         currentVideoIndexInSession = 0;
         localStorage.setItem(STORAGE_KEY_SESSION, currentSession.toString());
         localStorage.setItem(STORAGE_KEY_SESSION_START, Date.now().toString());
         
-        // 清空当前 session 事件数组
         currentSessionEvents = [];
-        
         isWaitingForNextSession = true;
         
         prompt.innerHTML = `<span style="color:#4CAF50;">[Session ${currentSession-1} 완료!]</span><br><br>
@@ -435,19 +412,11 @@ function initializeExperiment() {
 
     function confirmEnd() {
         if (!fineTuning) return;
-        
         fineTuning = false;
         adjustHint.style.display = 'none';
         
         const videoId = v.src.includes('practice') ? 'practice' : sessionVideos[currentSession][currentVideoIndexInSession];
-        
-        currentEvents.push({
-            vid: videoId,
-            session: currentSession,
-            ev: evtCnt + 1,
-            time: v.currentTime,
-            desc: ''
-        });
+        currentEvents.push({ vid: videoId, session: currentSession, ev: evtCnt + 1, time: v.currentTime, desc: '' });
         
         evtCnt++;
         counter.textContent = 'Events: ' + evtCnt;
@@ -457,14 +426,12 @@ function initializeExperiment() {
         descInput.focus();
     }
 
-    // 保留新版字数判断逻辑，其余与旧版完全一致
     async function saveDesc() {
         if (isTransitioning) return;
         
         const txt = descInput.value.trim();
         if (!txt) { alert('설명을 입력해주세요.'); descInput.focus(); return; }
         
-        // 新版字数检查（保留）
         const validCharCount = txt.replace(/\s+/g, '').length;
         if (validCharCount < 6) {
             alert(`설명은 공백 제외 최소 6글자 이상이어야 합니다. (현재: ${validCharCount}글자)`);
@@ -472,27 +439,21 @@ function initializeExperiment() {
             return;
         }
         
-        // 更新最后一个事件的描述
         const lastIdx = currentEvents.length - 1;
         if (lastIdx >= 0) currentEvents[lastIdx].desc = txt;
-        
         descBox.style.display = 'none';
         
-        // 只在视频结束后才上传并跳转
         if (v.ended) {
             isTransitioning = true;
-            
             prompt.innerHTML = '데이터 저장 중입니다...';
             prompt.style.display = 'block';
             v.style.display = 'none';
             
-            // 存储事件到 session 数组（在上传前）
             const eventsToStore = [...currentEvents];
             currentSessionEvents.push(...eventsToStore);
             
             console.log(`Added video ${currentVideoIndexInSession + 1} events to session. Total events so far: ${currentSessionEvents.length}`);
             
-            // 上传视频数据
             const videoId = currentEvents[0]?.vid || 'unknown';
             await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
             
@@ -502,12 +463,10 @@ function initializeExperiment() {
                 currentSessionEvents = [];
                 loadNext();
             } else {
-                // 最后一个视频由 loadNext 的守卫判断
                 currentVideoIndexInSession++;
                 loadNext();
             }
         } else {
-            // 非视频结束的提交，继续播放
             v.play().catch(e => console.log('Play interrupted'));
         }
     }
@@ -518,14 +477,12 @@ function initializeExperiment() {
         evtCnt--;
         counter.textContent = 'Events: ' + Math.max(0, evtCnt);
         
-        // 练习视频结束时的取消处理
         if (v.src.includes('practice') && v.ended) {
             currentSession = 1;
             currentVideoIndexInSession = 0;
             currentSessionEvents = [];
             loadNext();
         } else {
-            // 显示提示，让用户继续
             prompt.innerHTML = '취소되었습니다.<br>계속하려면 아무 키나 누르세요.';
             prompt.style.display = 'block';
             v.style.display = 'none';
@@ -538,14 +495,11 @@ function initializeExperiment() {
         const sessionDuration = Math.round((sessionEndTime - sessionStart) / 1000);
         
         console.log(`Final session (${currentSession}) events:`, currentSessionEvents);
-        
-        // 上传最后一个 session 的摘要
         await uploadSessionSummary(currentSession, currentSessionEvents, sessionDuration);
         
         document.getElementById('experiment').style.display = 'none';
         document.getElementById('completion').style.display = 'flex';
         
-        // 上传最终完整数据
         await uploadFinalSummary();
         
         localStorage.removeItem(STORAGE_KEY_PROGRESS);
@@ -562,11 +516,9 @@ function initializeExperiment() {
         }, 1000);
     }
 
-    // 事件监听
     document.getElementById('okBtn').onclick = saveDesc;
     document.getElementById('cancelBtn').onclick = cancelDescription;
 
-    // 键盘控制
     document.onkeydown = (e) => {
         if (document.getElementById('experiment').style.display === 'none') return;
         
@@ -581,7 +533,6 @@ function initializeExperiment() {
             
             prompt.style.display = 'none';
             v.style.display = 'block';
-            
             if (isWaitingForNextSession) {
                 isWaitingForNextSession = false;
                 loadNext();
@@ -598,7 +549,6 @@ function initializeExperiment() {
                 pauseAndFineTune();
                 return;
             }
-            
             if (fineTuning && v.paused) {
                 if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
                     e.preventDefault();
@@ -617,15 +567,7 @@ function initializeExperiment() {
 
     v.onended = () => {
         const videoId = v.src.includes('practice') ? 'practice' : sessionVideos[currentSession][currentVideoIndexInSession];
-        
-        currentEvents.push({
-            vid: videoId,
-            session: currentSession,
-            ev: evtCnt + 1,
-            time: v.duration,
-            desc: '[auto-end]'
-        });
-        
+        currentEvents.push({ vid: videoId, session: currentSession, ev: evtCnt + 1, time: v.duration, desc: '[auto-end]' });
         evtCnt++;
         counter.textContent = 'Events: ' + evtCnt;
         descInput.value = '';
@@ -635,7 +577,7 @@ function initializeExperiment() {
     };
 }
 
-// ====== 上传函数（保留新版字段补全和重试机制） ======
+// ====== 上传函数（含防重随机字段 + 详细日志） ======
 
 function getGlobalData() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY_ALL_DATA)) || []; } catch { return []; }
@@ -645,20 +587,6 @@ function appendToDisk(events) {
     const all = getGlobalData();
     all.push(...events);
     localStorage.setItem(STORAGE_KEY_ALL_DATA, JSON.stringify(all));
-}
-
-async function fetchWithRetry(url, options, retries = 3) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            const response = await fetch(url, options);
-            if (response.ok) return response;
-            console.warn(`Netlify upload attempt ${i + 1} failed. Status: ${response.status}`);
-        } catch (err) {
-            console.warn(`Netlify upload attempt ${i + 1} error:`, err);
-        }
-        await new Promise(res => setTimeout(res, 1000));
-    }
-    throw new Error('All retries failed');
 }
 
 async function uploadVideo(videoId, events, session, position) {
@@ -695,12 +623,16 @@ async function uploadVideo(videoId, events, session, position) {
     formData.append('videos_completed', '');
     formData.append('total_events_recorded', '');
 
+    // 防重字段
+    formData.append('x-nonce', Date.now().toString() + Math.random().toString(36).substring(2));
+    formData.append('x-timestamp', new Date().toISOString());
+
     console.log(`[Upload] Starting upload for video ${videoId}...`);
     try {
         const response = await fetch('/', { method: 'POST', body: formData });
         console.log(`[Upload] Video ${videoId} response status: ${response.status}`);
         const text = await response.text();
-        console.log(`[Upload] Video ${videoId} response body:`, text.substring(0, 200)); // 前200字符
+        console.log(`[Upload] Video ${videoId} response body:`, text.substring(0, 200));
         if (response.ok) {
             showUploadStatus(`✅ 영상 ${videoId} 저장 완료`);
             return true;
@@ -742,6 +674,10 @@ async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     console.log(`[Upload] Session ${sessionNum} summary size: ${eventsJson.length} bytes`);
     formData.append('events', eventsJson);
     formData.append('completion_time', new Date().toISOString());
+
+    // 防重字段
+    formData.append('x-nonce', Date.now().toString() + Math.random().toString(36).substring(2));
+    formData.append('x-timestamp', new Date().toISOString());
 
     console.log(`[Upload] Starting session ${sessionNum} summary upload...`);
     try {
@@ -785,6 +721,10 @@ async function uploadFinalSummary() {
     console.log(`[Upload] Final summary size: ${eventsJson.length} bytes`);
     formData.append('events', eventsJson);
     formData.append('completion_time', new Date().toISOString());
+
+    // 防重字段
+    formData.append('x-nonce', Date.now().toString() + Math.random().toString(36).substring(2));
+    formData.append('x-timestamp', new Date().toISOString());
 
     console.log(`[Upload] Starting final summary upload...`);
     try {
