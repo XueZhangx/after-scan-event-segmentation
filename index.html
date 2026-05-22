@@ -6,52 +6,114 @@
 <style>
   body{margin:0;background:#000;color:#fff;font-family:'Malgun Gothic', 'Apple SD Gothic Neo', Arial, sans-serif;overflow:hidden}
   #videoBox{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
-  video { width: 96%; max-height: 96%; pointer-events: none !important; user-select: none !important; cursor: default !important; }
+  video {
+    width: 96%;
+    max-height: 96%;
+    pointer-events: none !important;
+    user-select: none !important;
+    cursor: default !important;
+  }
+  
+  /* Prompt & Counter */
   #prompt{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:26px;text-align:center;line-height: 1.5; display:none;}
   #counter{position:fixed;top:20px;right:20px;font-size:24px}
   #help{position:fixed;bottom:20px;left:20px;font-size:14px;color:#ccc}
   #adjustHint{position:fixed;bottom:60px;left:20px;font-size:14px;color:#ccc;display:none}
+  
+  /* Description Box */
   #descBox{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#222;padding:20px 30px;border-radius:8px;display:none;z-index:1000;}
   #descBox input{width:350px;font-size:18px;padding:6px 10px}
   #descBox button{margin-left:10px;padding:6px 12px;font-size:16px;cursor: pointer;}
+  
+  /* Consent Overlay */
   #consent{position:fixed;top:0;left:0;width:100vw;height:100vh;background:#000;z-index:2000;display:flex;align-items:center;justify-content:center; overflow-y: auto;}
+  
+  /* Completion Overlay */
   #completion{position:fixed;top:0;left:0;width:100vw;height:100vh;background:#000;z-index:2000;display:none;flex-direction:column;align-items:center;justify-content:center;}
-  #starter { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #111; z-index: 1500; display: none; flex-direction: column; align-items: center; justify-content: center; }
+  
+  /* Starter Menu */
+  #starter {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #111; z-index: 1500;
+      display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+  }
   #starter select { padding: 10px; font-size: 16px; margin: 10px 0; border-radius: 5px; min-width: 350px; }
   #starter button { padding: 10px 20px; font-size: 18px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; }
+
   .input-group { margin: 20px 0; }
   .input-group label { display: block; margin-bottom: 8px; font-weight: bold; }
   .input-group input { padding: 10px; width: 100%; box-sizing: border-box; font-size: 16px; }
+  
+  /* Countdown Styles */
   .wait-warning { color: #FF9800; font-size: 20px; margin-bottom: 20px; font-weight: bold;}
   .success-msg { color: #4CAF50; font-size: 20px; margin-bottom: 20px; display: none; }
-  #uploadStatus { position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.8); color: #4CAF50; padding: 10px 20px; border-radius: 5px; font-size: 14px; display: none; z-index: 3000; }
+  
+  /* Upload Status Indicator */
+  #uploadStatus {
+      position: fixed; bottom: 20px; right: 20px;
+      background: rgba(0,0,0,0.8); color: #4CAF50;
+      padding: 10px 20px; border-radius: 5px;
+      font-size: 14px; display: none;
+      z-index: 3000;
+  }
 </style>
 </head>
 <body>
 
+<!-- Upload Status Indicator -->
 <div id="uploadStatus"></div>
 
+<!-- 1. Consent Form (Korean) -->
 <div id="consent">
   <div style="max-width: 800px; margin: 50px auto; padding: 30px; background: #222; border-radius: 10px; border: 1px solid #444;">
     <h2>이벤트 분할 연구 (Event Segmentation Study)</h2>
+    <p>본 실험에 참여하기 전, 아래 내용을 주의 깊게 읽어주세요:</p>
+    <ul>
+      <li><strong>과제:</strong> 동영상을 시청하며 사건의 경계를 구분합니다.</li>
+      <li><strong>역할:</strong> 의미 있는 사건 단위가 끝나거나 새로운 사건이 시작될 때마다 스페이스바를 누르고, 해당 사건에 대한 간단한 설명을 작성합니다.</li>
+      <li><strong>구성:</strong> 연습 영상(1개) + 본 실험 영상(16개, 2개 세션으로 나뉨, 각 세션당 8개 영상)</li>
+    </ul>
+
+    <div style="background:#333;padding:15px;border-radius:5px;margin:20px 0;">
+      <h3 style="margin-top:0;">조작 방법 (How to Mark Events):</h3>
+      <ul style="margin-bottom:0; line-height: 1.6;">
+        <li><strong>스페이스바 (SPACEBAR)</strong> - 의미 있는 사건 단위가 끝났거나 새로운 사건이 시작된다고 생각될 때 누릅니다 (다시 누르면 계속 재생됩니다)</li>
+        <li><strong>← → 방향키</strong> - 시간 미세 조정 (±1초)</li>
+        <li><strong>엔터 (ENTER)</strong> - 시간 확정; <strong>설명 입력 후 엔터를 눌러 제출</strong></li>
+        <li><strong>ESC</strong> - 표시 취소 또는 입력 취소</li>
+      </ul>
+    </div>
+
     <div class="input-group">
         <label for="participantName" style="color: #4CAF50;">성함 (Name):</label>
         <input type="text" id="participantName" placeholder="성함을 입력해주세요 (Enter your name)">
     </div>
+
+    <p>아래 버튼을 클릭하면 위 내용을 이해했으며 실험 참여에 동의하는 것으로 간주합니다.</p>
     <button id="agreeBtn" style="padding: 12px 25px; font-size: 18px; background:#4CAF50; color:white; border:none;border-radius:5px;cursor:pointer;">동의 및 시작 (Confirm & Start)</button>
   </div>
 </div>
 
+<!-- 2. Starter Menu (Korean) -->
 <div id="starter">
     <h2>시작 구간 선택 (Select Start Point)</h2>
-    <select id="startSelect"></select><br>
+    <p style="color:#ccc;">새로고침을 하셨거나 중단된 경우, 아래에서 시작할 위치를 선택하세요.</p>
+    <label>
+        시작 위치 (Start from):
+        <select id="startSelect"></select>
+    </label>
+    <br>
     <button id="realStartBtn">실험 시작 (Start Experiment)</button>
 </div>
 
+<!-- 3. Experiment Interface (Korean) -->
 <div id="experiment" style="display: none;">
   <div id="prompt">로딩 중... (Loading)</div>
   <div id="counter">Events: 0</div>
-  <div id="videoBox"><video id="v" controls style="display:none;"></video></div>
+  <div id="videoBox">
+    <video id="v" controls style="display:none;"></video>
+  </div>
   <div id="help">Space=경계 표시 (사건 종료/시작)&nbsp;&nbsp; Enter=확정/제출&nbsp;&nbsp; ESC=취소</div>
   <div id="adjustHint">← → 조정 (Space=재생) (Enter=확정)</div>
   <div id="descBox">
@@ -62,17 +124,50 @@
       <button id="okBtn">제출 (Submit)</button>
       <button id="cancelBtn" style="margin-left: 10px; background: #666; color:white;">취소 (Cancel)</button>
     </div>
+    <div style="font-size: 12px; color: #999; margin-top: 5px;">
+        엔터(Enter)를 눌러 제출 / ESC를 눌러 취소
+    </div>
   </div>
 </div>
 
+<!-- 4. Completion Screen (Korean) -->
 <div id="completion">
   <h2>참여해 주셔서 감사합니다!</h2>
-  <div id="waitMsg" class="wait-warning">데이터 동기화 중입니다. 창을 닫지 말고 잠시만 기다려주세요... <span id="countdown">5</span></div>
-  <div id="finalMsg" class="success-msg">✅ 데이터가 성공적으로 저장되었습니다. 이제 창을 닫으셔도 됩니다.</div>
+  <div id="waitMsg" class="wait-warning">
+      데이터 동기화 중입니다. 창을 닫지 말고 잠시만 기다려주세요... <span id="countdown" style="font-size: 24px; color: white;">5</span>
+  </div>
+  <div id="finalMsg" class="success-msg">
+      ✅ 데이터가 성공적으로 저장되었습니다. 이제 창을 닫으셔도 됩니다.
+  </div>
 </div>
 
+<!-- 🚨 完整且精准对齐的 Netlify 隐藏表单 🚨 -->
+<form id="netlify-data-form" style="display: none;" netlify netlify-honeypot="bot-field" name="after-scan-event-segmentation">
+  <input type="hidden" name="form-name" value="after-scan-event-segmentation"> 
+  <input type="hidden" name="prolific_pid">
+  <input type="hidden" name="study_id">
+  <input type="hidden" name="session_id">
+  <input type="hidden" name="video_index">
+  <input type="hidden" name="video_position_in_session">
+  <input type="hidden" name="video_position_display">
+  <input type="hidden" name="session_start_time">
+  <input type="hidden" name="session_end_time">
+  <input type="hidden" name="session_duration_seconds">
+  <input type="hidden" name="session_duration_formatted">
+  <input type="hidden" name="upload_type">
+  <input type="hidden" name="events">
+  <input type="hidden" name="completion_time">
+  <input type="hidden" name="session_number">
+  <input type="hidden" name="videos_completed">
+  <input type="hidden" name="total_videos_in_session">
+  <input type="hidden" name="total_events_recorded">
+  <input type="text" name="bot-field" style="display: none;">
+</form>
+
 <script>
+// ====== Configuration ======
 const SELECTED_VIDEOS = [ 1, 2, 4, 6, 8, 9, 12, 14,15, 17, 18, 19, 20, 21, 26, 27];
+const TOTAL_VIDEOS = SELECTED_VIDEOS.length;
 const VIDEOS_PER_SESSION = 8;
 const TOTAL_SESSIONS = 2;
 
@@ -83,6 +178,7 @@ const STORAGE_KEY_SESSION = 'seeg_kor_v8_session';
 const STORAGE_KEY_VIDEO_ORDER = 'seeg_kor_v8_order';
 const STORAGE_KEY_SESSION_START = 'seeg_kor_v8_session_start';
 
+// Global state
 let currentSession = 1;
 let videoOrder = [];
 let sessionVideos = {1: [], 2: []};
@@ -91,11 +187,17 @@ let isPracticeMode = false;
 let currentEvents = [];
 let sessionStartTime = null;
 let isWaitingForNextSession = false;
+// Store all events for the current session
 let currentSessionEvents = [];
 
+// Auto-fill name on load
 window.addEventListener('DOMContentLoaded', () => {
     const savedName = localStorage.getItem(STORAGE_KEY_NAME);
-    if(savedName) document.getElementById('participantName').value = savedName;
+    if(savedName) {
+        document.getElementById('participantName').value = savedName;
+    }
+    
+    // Check for unfinished experiment
     const savedProgress = localStorage.getItem(STORAGE_KEY_PROGRESS);
     if (savedProgress) {
         setTimeout(() => {
@@ -106,12 +208,14 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Get participant ID
 function getParticipantID() {
     let name = document.getElementById('participantName').value.trim();
     if(!name) name = localStorage.getItem(STORAGE_KEY_NAME) || "Unknown_User";
     return name;
 }
 
+// Shuffle array
 function shuffleArray(array) {
     const newArray = [...array];
     for (let i = newArray.length - 1; i > 0; i--) {
@@ -121,9 +225,11 @@ function shuffleArray(array) {
     return newArray;
 }
 
+// Initialize randomization
 function initializeRandomization() {
     const savedOrder = localStorage.getItem(STORAGE_KEY_VIDEO_ORDER);
     const savedSession = localStorage.getItem(STORAGE_KEY_SESSION);
+    
     if (savedOrder && savedSession) {
         videoOrder = JSON.parse(savedOrder);
         currentSession = parseInt(savedSession);
@@ -139,11 +245,14 @@ function initializeRandomization() {
     }
 }
 
+// Show starter menu
 function showStarterMenu() {
     const starter = document.getElementById('starter');
     const startSelect = document.getElementById('startSelect');
+    
     initializeRandomization();
     const savedProgress = localStorage.getItem(STORAGE_KEY_PROGRESS);
+    
     startSelect.innerHTML = '';
     
     const opt0 = document.createElement('option');
@@ -152,29 +261,42 @@ function showStarterMenu() {
     if (!savedProgress) opt0.selected = true;
     startSelect.appendChild(opt0);
     
-    const sep = document.createElement('option');
-    sep.disabled = true; sep.textContent = "──────────────────";
-    startSelect.appendChild(sep);
+    const separator = document.createElement('option');
+    separator.disabled = true;
+    separator.textContent = "──────────────────";
+    startSelect.appendChild(separator);
     
     for(let i = 0; i < 8; i++) {
         const opt = document.createElement('option');
-        opt.value = `1_${i}`; opt.textContent = `Session 1 - 영상 ${i+1}`;
-        if (savedProgress && JSON.parse(savedProgress).session === 1 && JSON.parse(savedProgress).videoIndex === i) opt.selected = true;
+        opt.value = `1_${i}`;
+        opt.textContent = `Session 1 - 영상 ${i+1}`;
+        if (savedProgress) {
+            const p = JSON.parse(savedProgress);
+            if (p.session === 1 && p.videoIndex === i) opt.selected = true;
+        }
         startSelect.appendChild(opt);
     }
     
-    startSelect.appendChild(sep.cloneNode(true));
+    const separator2 = document.createElement('option');
+    separator2.disabled = true;
+    separator2.textContent = "──────────────────";
+    startSelect.appendChild(separator2);
     
     for(let i = 0; i < 8; i++) {
         const opt = document.createElement('option');
-        opt.value = `2_${i}`; opt.textContent = `Session 2 - 영상 ${i+1}`;
-        if (savedProgress && JSON.parse(savedProgress).session === 2 && JSON.parse(savedProgress).videoIndex === i) opt.selected = true;
+        opt.value = `2_${i}`;
+        opt.textContent = `Session 2 - 영상 ${i+1}`;
+        if (savedProgress) {
+            const p = JSON.parse(savedProgress);
+            if (p.session === 2 && p.videoIndex === i) opt.selected = true;
+        }
         startSelect.appendChild(opt);
     }
     
     starter.style.display = 'flex';
 }
 
+// ====== 1. Consent ======
 document.getElementById('agreeBtn').addEventListener('click', function() {
     const name = document.getElementById('participantName').value.trim();
     if(!name) { alert("이름을 입력해주세요."); return; }
@@ -183,17 +305,24 @@ document.getElementById('agreeBtn').addEventListener('click', function() {
     showStarterMenu();
 });
 
+// ====== 2. Start ======
 document.getElementById('realStartBtn').addEventListener('click', function() {
     const val = document.getElementById('startSelect').value;
     let session, index, practice = false;
-    if (val === '0_0') { session = 1; index = 0; practice = true; } 
-    else { [session, index] = val.split('_').map(Number); }
+    
+    if (val === '0_0') {
+        session = 1;
+        index = 0;
+        practice = true;
+    } else {
+        [session, index] = val.split('_').map(Number);
+    }
     
     currentSession = session;
     currentVideoIndexInSession = index;
     isPracticeMode = practice;
     isWaitingForNextSession = false;
-    currentSessionEvents = []; 
+    currentSessionEvents = []; // Reset session events
     
     sessionStartTime = Date.now();
     localStorage.setItem(STORAGE_KEY_SESSION_START, sessionStartTime.toString());
@@ -205,6 +334,7 @@ document.getElementById('realStartBtn').addEventListener('click', function() {
     initializeExperiment();
 });
 
+// ====== 3. Experiment ======
 function initializeExperiment() {
     let evtCnt = 0;
     let fineTuning = false;
@@ -218,28 +348,45 @@ function initializeExperiment() {
     const evNumSpan = document.getElementById('evNum');
     const adjustHint = document.getElementById('adjustHint');
 
+    // Load first video
     loadNext();
 
     function loadNext() {
         isTransitioning = false;
         
+        // Handle practice mode
         if (isPracticeMode) {
             isPracticeMode = false;
             v.src = 'practice.mp4';
             prompt.innerHTML = '<span style="color:#4CAF50;">[연습 단계]</span><br>아무 키나 눌러 시작하세요.';
             v.style.display = 'none';
             prompt.style.display = 'block';
-            currentEvents = []; evtCnt = 0; counter.textContent = 'Events: 0';
+            currentEvents = [];
+            evtCnt = 0;
+            counter.textContent = 'Events: 0';
             return;
         }
         
+        // Check if session is complete
         if (currentVideoIndexInSession >= VIDEOS_PER_SESSION) {
-            if (currentSession === TOTAL_SESSIONS) { finishAll(); return; }
-            completeCurrentSession(); return;
+            if (currentSession === TOTAL_SESSIONS) {
+                finishAll();
+                return;
+            }
+            // Session complete, upload summary and wait for next session
+            completeCurrentSession();
+            return;
         }
 
-        localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify({ session: currentSession, videoIndex: currentVideoIndexInSession, timestamp: Date.now() }));
+        // Save progress
+        const progress = {
+            session: currentSession,
+            videoIndex: currentVideoIndexInSession,
+            timestamp: Date.now()
+        };
+        localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progress));
 
+        // Load video
         const videoNum = sessionVideos[currentSession][currentVideoIndexInSession];
         v.src = `v${videoNum}.mp4`;
         
@@ -247,7 +394,9 @@ function initializeExperiment() {
         v.style.display = 'none';
         prompt.style.display = 'block';
         
-        currentEvents = []; evtCnt = 0; counter.textContent = 'Events: 0';
+        currentEvents = [];
+        evtCnt = 0;
+        counter.textContent = 'Events: 0';
         fineTuning = false;
     }
 
@@ -256,16 +405,22 @@ function initializeExperiment() {
         const sessionStart = parseInt(localStorage.getItem(STORAGE_KEY_SESSION_START)) || sessionEndTime;
         const sessionDuration = Math.round((sessionEndTime - sessionStart) / 1000);
         
+        // Upload session summary with all collected events
         await uploadSessionSummary(currentSession, currentSessionEvents, sessionDuration);
         
+        // Update session
         currentSession++;
         currentVideoIndexInSession = 0;
         localStorage.setItem(STORAGE_KEY_SESSION, currentSession.toString());
         localStorage.setItem(STORAGE_KEY_SESSION_START, Date.now().toString());
         
+        // Reset session events for new session
         currentSessionEvents = [];
+        
+        // Set waiting flag
         isWaitingForNextSession = true;
         
+        // Show completion message
         prompt.innerHTML = `<span style="color:#4CAF50;">[Session ${currentSession-1} 완료!]</span><br><br>
                             소요 시간: ${formatDuration(sessionDuration)}<br>
                             ${VIDEOS_PER_SESSION}개 영상 완료<br><br>
@@ -275,65 +430,99 @@ function initializeExperiment() {
     }
 
     function formatDuration(seconds) {
-        const mins = Math.floor(seconds / 60); const secs = seconds % 60;
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
         return `${mins}분 ${secs}초`;
     }
 
     function pauseAndFineTune() {
         if (fineTuning) {
-            fineTuning = false; adjustHint.style.display = 'none';
+            fineTuning = false;
+            adjustHint.style.display = 'none';
             v.play().catch(e => console.log('Play interrupted'));
         } else {
-            v.pause(); fineTuning = true; adjustHint.style.display = 'block';
+            v.pause();
+            fineTuning = true;
+            adjustHint.style.display = 'block';
         }
     }
 
     function confirmEnd() {
         if (!fineTuning) return;
-        fineTuning = false; adjustHint.style.display = 'none';
+        
+        fineTuning = false;
+        adjustHint.style.display = 'none';
         
         const videoId = v.src.includes('practice') ? 'practice' : sessionVideos[currentSession][currentVideoIndexInSession];
-        currentEvents.push({ vid: videoId, session: currentSession, ev: evtCnt + 1, time: v.currentTime, desc: '' });
         
-        evtCnt++; counter.textContent = 'Events: ' + evtCnt;
-        descInput.value = ''; evNumSpan.textContent = evtCnt;
-        descBox.style.display = 'block'; descInput.focus();
+        currentEvents.push({
+            vid: videoId,
+            session: currentSession,
+            ev: evtCnt + 1,
+            time: v.currentTime,
+            desc: ''
+        });
+        
+        evtCnt++;
+        counter.textContent = 'Events: ' + evtCnt;
+        descInput.value = '';
+        evNumSpan.textContent = evtCnt;
+        descBox.style.display = 'block';
+        descInput.focus();
     }
 
     async function saveDesc() {
         if (isTransitioning) return;
+        
         const txt = descInput.value.trim();
         
-        if (!txt) { alert('설명을 입력해주세요.'); descInput.focus(); return; }
+        if (!txt) { alert('설명을 입력해주세요. (Please enter a description.)'); descInput.focus(); return; }
+        
+        // 6 characters check (excluding space)
         const validCharCount = txt.replace(/\s+/g, '').length;
         if (validCharCount < 6) {
-            alert(`설명은 공백 제외 최소 6글자 이상이어야 합니다. (현재: ${validCharCount}글자)`);
-            descInput.focus(); return;
+            alert(`설명은 공백 제외 최소 6글자 이상이어야 합니다. (현재: ${validCharCount}글자)\nThe description must be at least 6 characters long.`);
+            descInput.focus();
+            return;
         }
         
+        // Update description
         const lastIdx = currentEvents.length - 1;
         if (lastIdx >= 0) currentEvents[lastIdx].desc = txt;
+        
         descBox.style.display = 'none';
         
+        // 遵照旧版视频结束判断逻辑：严格使用 v.ended
         if (v.ended) {
             isTransitioning = true;
+            
             prompt.innerHTML = '데이터 저장 중입니다...';
             prompt.style.display = 'block';
             v.style.display = 'none';
             
+            // Store events in currentSessionEvents BEFORE upload
             const eventsToStore = [...currentEvents];
             currentSessionEvents.push(...eventsToStore);
             
+            // Upload video data
             const videoId = currentEvents[0]?.vid || 'unknown';
-            await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
+            const success = await uploadVideo(videoId, eventsToStore, currentSession, currentVideoIndexInSession);
             
             if (v.src.includes('practice')) {
-                currentSession = 1; currentVideoIndexInSession = 0; currentSessionEvents = []; loadNext();
+                currentSession = 1;
+                currentVideoIndexInSession = 0;
+                currentSessionEvents = []; // Reset session events
+                loadNext();
             } else {
+                // Check if this was the last video
                 if (currentVideoIndexInSession === VIDEOS_PER_SESSION - 1) {
-                    currentVideoIndexInSession++; loadNext();
+                    // Last video - increment and let loadNext handle session completion
+                    currentVideoIndexInSession++;
+                    loadNext();
                 } else {
-                    currentVideoIndexInSession++; loadNext();
+                    // Not last video - move to next
+                    currentVideoIndexInSession++;
+                    loadNext();
                 }
             }
         } else {
@@ -343,12 +532,19 @@ function initializeExperiment() {
 
     function cancelDescription() {
         descBox.style.display = 'none';
-        currentEvents.pop(); evtCnt--; counter.textContent = 'Events: ' + Math.max(0, evtCnt);
+        currentEvents.pop();
+        evtCnt--;
+        counter.textContent = 'Events: ' + Math.max(0, evtCnt);
+        
         if (v.src.includes('practice') && v.ended) {
-            currentSession = 1; currentVideoIndexInSession = 0; currentSessionEvents = []; loadNext();
+            currentSession = 1;
+            currentVideoIndexInSession = 0;
+            currentSessionEvents = []; // Reset session events
+            loadNext();
         } else {
             prompt.innerHTML = '취소되었습니다.<br>계속하려면 아무 키나 누르세요.';
-            prompt.style.display = 'block'; v.style.display = 'none';
+            prompt.style.display = 'block';
+            v.style.display = 'none';
         }
     }
 
@@ -357,17 +553,20 @@ function initializeExperiment() {
         const sessionStart = parseInt(localStorage.getItem(STORAGE_KEY_SESSION_START)) || sessionEndTime;
         const sessionDuration = Math.round((sessionEndTime - sessionStart) / 1000);
         
+        // Upload session 2 summary
         await uploadSessionSummary(2, currentSessionEvents, sessionDuration);
         
         document.getElementById('experiment').style.display = 'none';
         document.getElementById('completion').style.display = 'flex';
         
         await uploadFinalSummary();
+        
         localStorage.removeItem(STORAGE_KEY_PROGRESS);
         
         let timeLeft = 5;
         const timer = setInterval(() => {
-            timeLeft--; document.getElementById('countdown').textContent = timeLeft;
+            timeLeft--;
+            document.getElementById('countdown').textContent = timeLeft;
             if (timeLeft <= 0) {
                 clearInterval(timer);
                 document.getElementById('waitMsg').style.display = 'none';
@@ -376,125 +575,231 @@ function initializeExperiment() {
         }, 1000);
     }
 
+    // Event listeners
     document.getElementById('okBtn').onclick = saveDesc;
     document.getElementById('cancelBtn').onclick = cancelDescription;
 
+    // Keyboard controls
     document.onkeydown = (e) => {
         if (document.getElementById('experiment').style.display === 'none') return;
+        
         if (document.activeElement.id === 'descInput') {
             if (e.code === 'Enter') { e.preventDefault(); saveDesc(); }
             if (e.code === 'Escape') { e.preventDefault(); cancelDescription(); }
             return;
         }
+        
         if (v.style.display === 'none' && prompt.style.display !== 'none') {
             if (isTransitioning) return;
-            prompt.style.display = 'none'; v.style.display = 'block';
-            if (isWaitingForNextSession) { isWaitingForNextSession = false; loadNext(); } 
-            else { if (!v.src || v.src === '') loadNext(); else v.play().catch(e => console.log('Play interrupted')); }
+            
+            prompt.style.display = 'none';
+            v.style.display = 'block';
+            
+            // If we're waiting for next session, load the first video
+            if (isWaitingForNextSession) {
+                isWaitingForNextSession = false;
+                loadNext();
+            } else {
+                if (!v.src || v.src === '') {
+                    loadNext();
+                } else {
+                    v.play().catch(e => console.log('Play interrupted'));
+                }
+            }
             return;
         }
+        
         if (v.style.display !== 'none') {
-            if (e.code === 'Space') { e.preventDefault(); pauseAndFineTune(); return; }
+            if (e.code === 'Space') {
+                e.preventDefault();
+                pauseAndFineTune();
+                return;
+            }
+            
             if (fineTuning && v.paused) {
                 if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-                    e.preventDefault(); v.currentTime += e.code === 'ArrowLeft' ? -1 : 1;
-                    v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime)); return;
+                    e.preventDefault();
+                    v.currentTime += e.code === 'ArrowLeft' ? -1 : 1;
+                    v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime));
+                    return;
                 }
-                if (e.code === 'Enter') { e.preventDefault(); confirmEnd(); return; }
+                if (e.code === 'Enter') {
+                    e.preventDefault();
+                    confirmEnd();
+                    return;
+                }
             }
         }
     };
 
     v.onended = () => {
         const videoId = v.src.includes('practice') ? 'practice' : sessionVideos[currentSession][currentVideoIndexInSession];
-        currentEvents.push({ vid: videoId, session: currentSession, ev: evtCnt + 1, time: v.duration, desc: '[auto-end]' });
-        evtCnt++; counter.textContent = 'Events: ' + evtCnt;
-        descInput.value = ''; evNumSpan.textContent = evtCnt;
-        descBox.style.display = 'block'; descInput.focus();
+        
+        currentEvents.push({
+            vid: videoId,
+            session: currentSession,
+            ev: evtCnt + 1,
+            time: v.duration,
+            desc: '[auto-end]'
+        });
+        
+        evtCnt++;
+        counter.textContent = 'Events: ' + evtCnt;
+        descInput.value = '';
+        evNumSpan.textContent = evtCnt;
+        descBox.style.display = 'block';
+        descInput.focus();
     };
 }
 
-// ====== 4. PURE JSON API Upload Functions ======
+// ====== 4. Upload Functions ======
 
-function getGlobalData() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY_ALL_DATA)) || []; } catch { return []; } }
+function getGlobalData() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY_ALL_DATA)) || [];
+    } catch { return []; }
+}
 
 function appendToDisk(events) {
-    const all = getGlobalData(); all.push(...events);
+    const all = getGlobalData();
+    all.push(...events);
     localStorage.setItem(STORAGE_KEY_ALL_DATA, JSON.stringify(all));
 }
 
-// 将前端数据直接封装成 JSON 丢给我们的新后端接口
-async function sendToNetlifyFunction(payload) {
+// Upload video
+async function uploadVideo(videoId, events, session, position) {
+    appendToDisk(events);
+    
+    const pid = getParticipantID();
+    const formData = new FormData();
+    formData.append('form-name', 'after-scan-event-segmentation');
+    formData.append('prolific_pid', pid);
+    formData.append('study_id', 'after_scan_event_segmentation');
+    
+    if (videoId === 'practice') {
+        formData.append('session_id', `sess_${pid}_practice`);
+        formData.append('video_position_in_session', 'practice');
+        formData.append('video_position_display', 'practice');
+        formData.append('upload_type', 'practice');
+    } else {
+        formData.append('session_id', `sess_${pid}_session${session}`);
+        formData.append('video_position_in_session', (position + 1).toString());
+        formData.append('video_position_display', `${position + 1}/${VIDEOS_PER_SESSION}`);
+        formData.append('upload_type', 'main');
+    }
+    
+    formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
+    formData.append('session_end_time', '');
+    formData.append('session_duration_seconds', '');
+    formData.append('session_duration_formatted', '');
+    formData.append('video_index', videoId.toString());
+    formData.append('events', JSON.stringify(events));
+    formData.append('completion_time', new Date().toISOString());
+    formData.append('session_number', '');
+    formData.append('videos_completed', '');
+    formData.append('total_videos_in_session', '');
+    formData.append('total_events_recorded', '');
+    formData.append('bot-field', '');
+
     try {
-        const response = await fetch('/api/save-data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        return response.ok;
+        await fetch('/', { method: 'POST', body: formData });
+        showUploadStatus(`✅ 영상 ${videoId} 저장 완료`);
+        return true;
     } catch (e) {
-        console.error("Function Upload Error:", e);
+        showUploadStatus(`❌ 저장 실패`, true);
+        console.error(e);
         return false;
     }
 }
 
-async function uploadVideo(videoId, events, session, position) {
-    appendToDisk(events);
-    const pid = getParticipantID();
-    
-    const payload = {
-        prolific_pid: pid,
-        study_id: 'after_scan_event_segmentation',
-        upload_type: videoId === 'practice' ? 'practice' : 'main',
-        session_id: videoId === 'practice' ? `sess_${pid}_practice` : `sess_${pid}_session${session}`,
-        video_index: videoId.toString(),
-        video_position_in_session: videoId === 'practice' ? 'practice' : (position + 1).toString(),
-        events: events,
-        completion_time: new Date().toISOString()
-    };
-
-    const success = await sendToNetlifyFunction(payload);
-    if(success) showUploadStatus(`✅ 영상 ${videoId} 데이터 저장됨`);
-    else showUploadStatus(`❌ 저장 실패 (Netlify 서버 에러)`, true);
-}
-
+// Upload session summary
 async function uploadSessionSummary(sessionNum, sessionData, durationSeconds) {
     const pid = getParticipantID();
-    const payload = {
-        prolific_pid: pid,
-        study_id: 'after_scan_event_segmentation',
-        upload_type: 'session_summary',
-        session_id: `sess_${pid}_session${sessionNum}_summary`,
-        session_number: sessionNum,
-        session_duration_seconds: durationSeconds,
-        total_events_recorded: sessionData.length,
-        events: sessionData,
-        completion_time: new Date().toISOString()
-    };
-    await sendToNetlifyFunction(payload);
-    showUploadStatus(`✅ Session ${sessionNum} 요약본 전송 완료!`);
+    const formData = new FormData();
+    formData.append('form-name', 'after-scan-event-segmentation');
+    formData.append('prolific_pid', pid);
+    formData.append('study_id', 'after_scan_event_segmentation');
+    formData.append('session_id', `sess_${pid}_session${sessionNum}_summary`);
+    formData.append('upload_type', 'session_summary');
+    formData.append('session_number', sessionNum.toString());
+    formData.append('session_duration_seconds', durationSeconds.toString());
+    formData.append('session_duration_formatted', formatDuration(durationSeconds));
+    
+    const uniqueVideosCount = new Set(sessionData.map(e => e.vid)).size;
+    formData.append('videos_completed', uniqueVideosCount.toString());
+    formData.append('total_events_recorded', sessionData.length.toString()); 
+    formData.append('total_videos_in_session', VIDEOS_PER_SESSION.toString());
+    
+    formData.append('session_start_time', localStorage.getItem(STORAGE_KEY_SESSION_START) || new Date().toISOString());
+    formData.append('session_end_time', new Date().toISOString());
+    formData.append('events', JSON.stringify(sessionData));
+    formData.append('completion_time', new Date().toISOString());
+    
+    formData.append('video_index', '');
+    formData.append('video_position_in_session', '');
+    formData.append('video_position_display', '');
+    formData.append('bot-field', '');
+
+    try {
+        await fetch('/', { method: 'POST', body: formData });
+        showUploadStatus(`✅ Session ${sessionNum} 완료! (${formatDuration(durationSeconds)})`);
+        console.log(`✅ Session ${sessionNum} summary uploaded`);
+    } catch (e) {
+        console.error(`❌ Session summary upload failed:`, e);
+    }
 }
 
+// Upload final summary
 async function uploadFinalSummary() {
     const allData = getGlobalData();
     const pid = getParticipantID();
-    const payload = {
-        prolific_pid: pid,
-        study_id: 'after_scan_event_segmentation',
-        upload_type: 'final_all_data',
-        session_id: `sess_${pid}_final`,
-        total_events_recorded: allData.length,
-        events: allData,
-        completion_time: new Date().toISOString()
-    };
-    const success = await sendToNetlifyFunction(payload);
-    if(success) console.log("✅ Final MEGA summary saved to Blobs");
+    const formData = new FormData();
+    formData.append('form-name', 'after-scan-event-segmentation');
+    formData.append('prolific_pid', pid);
+    formData.append('study_id', 'after_scan_event_segmentation');
+    formData.append('session_id', `sess_${pid}_final`);
+    formData.append('upload_type', 'final_all_data');
+    formData.append('video_index', 'ALL_VIDEOS');
+    
+    const uniqueVideosCount = new Set(allData.map(e => e.vid)).size;
+    formData.append('videos_completed', uniqueVideosCount.toString());
+    formData.append('total_events_recorded', allData.length.toString());
+    
+    formData.append('events', JSON.stringify(allData));
+    formData.append('completion_time', new Date().toISOString());
+    
+    formData.append('video_position_in_session', '');
+    formData.append('video_position_display', '');
+    formData.append('session_number', '');
+    formData.append('session_start_time', '');
+    formData.append('session_end_time', '');
+    formData.append('session_duration_seconds', '');
+    formData.append('session_duration_formatted', '');
+    formData.append('total_videos_in_session', '');
+    formData.append('bot-field', '');
+
+    try {
+        await fetch('/', { method: 'POST', body: formData });
+        console.log('✅ Final summary uploaded');
+    } catch (e) {
+        console.error('❌ Final summary failed', e);
+    }
 }
 
+// Helper function for formatting duration
+function formatDuration(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}분 ${secs}초`;
+}
+
+// Show status
 function showUploadStatus(msg, isError = false) {
     const el = document.getElementById('uploadStatus');
-    el.style.display = 'block'; el.style.color = isError ? '#FF5252' : '#4CAF50';
-    el.textContent = msg; setTimeout(() => el.style.display = 'none', 2000);
+    el.style.display = 'block';
+    el.style.color = isError ? '#FF5252' : '#4CAF50';
+    el.textContent = msg;
+    setTimeout(() => el.style.display = 'none', 2000);
 }
 </script>
 </body>
